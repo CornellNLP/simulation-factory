@@ -22,11 +22,3 @@ const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const googleProvider = new GoogleAuthProvider()
-
-// Fast Refresh re-runs this module without resetting the underlying Auth/
-// Firestore instances, and connecting an already-connected emulator throws —
-// only connect on the app's first real initialization.
-if (useEmulators && !alreadyInitialized) {
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
-  connectFirestoreEmulator(db, '127.0.0.1', 8080)
-}
