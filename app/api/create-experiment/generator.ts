@@ -11,7 +11,7 @@ import { parseAssistantTemplate, buildAssistant } from './parsers/assistant'
 import type { AgentAssistantTemplate } from './parsers/assistant'
 import { buildTopic, buildStages, buildExperiment } from './parsers/experiment'
 import { parseSimulationTemplate, applySimulationToChatStage } from './parsers/simulation'
-import { loadTemplate, replaceDefaults, fillAgentStance, agentConfig, createParticipant, excludeNone, resolveBlockItems, pickBlockDescription } from './utils'
+import { loadTemplate, replaceDefaults, fillAgentStance, fillAgentWithoutStance, agentConfig, createParticipant, excludeNone, resolveBlockItems, pickBlockDescription } from './utils'
 import { url } from 'inspector/promises'
 
 export type Mode = 'human-human' | 'human-agent' | 'agent-agent'
@@ -118,6 +118,17 @@ const BIAS_VARIABLE_CONFIG = {
   numToSelect: 1,
 }
 
+// A simulation-toolkit run has no debate statement for a mediator to favor a side
+// of, so any "Target Bias position" item left in a mediator it reuses is dropped
+// rather than rendered as an unfilled `{{target_bias_position}}`.
+function dropBiasItems(value: any): any {
+  if (Array.isArray(value)) return value.filter((v) => v?.type !== 'BIASED').map(dropBiasItems)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, dropBiasItems(v)]))
+  }
+  return value
+}
+
 export async function generate(p1: string, p2: string, experimentTemplatePath: string, mediatorTemplateContent: string | null | undefined,
                           mode: Mode, numCohorts?: number, numUtterances?: number, action?: 'create' | 'simulate',
                           simulationTemplateContent?: string, numAgents?: number, assistantTemplateContent?: string,
@@ -162,7 +173,9 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const topicInfo = buildTopic(experimentTemplate.topic)
 
   // Simulations are just the conversation, so the surveys around it are dropped
-  // and the run goes profile -> debate. Mediator-toolkit runs keep them.
+  // and the run goes profile -> conversation. The simulation template carries no
+  // surveys of its own; this also keeps them out should it inherit any.
+  // Mediator-toolkit runs keep them.
   const SIM_SKIPPED_STAGES = [PRE_SURVEY_STAGE_ID, POST_SURVEY_STAGE_ID]
   const stages = buildStages(experimentTemplate, topicInfo, postTitle, postDescription)
     .filter((s) => !(simulation && SIM_SKIPPED_STAGES.includes(s.id)))
@@ -179,8 +192,12 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
   // A run may deliberately have no mediator, in which case the experiment is
   // created with an empty `agentMediators` list.
+  // A simulation-toolkit run is a conversation, not a debate: it has no topic
+  // statement, no sides and so no mediator bias. Only the debate toolkits use them.
   const mediatorR1 = mediatorTemplateContent
-    ? buildMediator(chatStageId, parseMediatorTemplate(mediatorTemplateContent), stageIdsInOrder, topicInfo, simulation?.blocks ?? [], blockChoices)
+    ? (simulation
+        ? buildMediator(chatStageId, dropBiasItems(parseMediatorTemplate(mediatorTemplateContent)), stageIdsInOrder, null, simulation.blocks, blockChoices)
+        : buildMediator(chatStageId, parseMediatorTemplate(mediatorTemplateContent), stageIdsInOrder, topicInfo, [], blockChoices))
     : null
 
   const roleFor = (slot: string): 'OP' | 'Challenger' | undefined =>
@@ -200,11 +217,11 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   // somebody joins by link, whatever `mode` it was labelled with.
   const isSim = participantSlots.every((s) => s.type === 'agent')
 
-  // Whether the agents should be drawn onto opposing sides. That is what makes a
-  // simulation worth watching, and it stays true of a simulation-toolkit run
-  // whose seats include a human — the agents around them should still disagree.
-  // Runs from the other toolkits keep drawing each stance independently.
-  const opposeStances = agentSlots.length >= 2 && (isSim || simulation != null)
+  // Whether the agents should be drawn onto opposing sides of the debate
+  // statement, which is what makes an all-agent debate worth watching. A
+  // simulation-toolkit run draws no stances at all (see fillAgentWithoutStance):
+  // what each agent wants comes from its own prompt and the simulation blocks.
+  const opposeStances = agentSlots.length >= 2 && isSim
 
   // Assistants are addressed by the slot they stand behind, so they are built
   // once the seats are laid out. They are experiment-wide rather than per-cohort:
@@ -220,7 +237,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
     participantSlots.forEach(({ slot }, i) => {
       const content = assistantTemplateContents![i]
       if (!content) return
-      const assistant = buildAssistant(chatStageId, parseAssistantTemplate(content), stageIdsInOrder, topicInfo, postTitle, postDescription, roleFor(slot))
+      const assistant = buildAssistant(chatStageId, parseAssistantTemplate(content), stageIdsInOrder, simulation ? null : topicInfo, postTitle, postDescription, roleFor(slot))
       // The same collision the agent templates have: every assistant one user
       // saves carries the same persona id (the Agent Assistant toolkit derives it
       // from their email and does not expose it for editing), so this suffix is
@@ -338,9 +355,15 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
         const redditRole = roleFor(slot)
 
-        const s = stance[slot]
-        const [filled, finalStance] = fillAgentStance(tpl, topicInfo, s.rating, s.rating, postTitle, postDescription, redditRole)
-        stance[slot] = { side: finalStance.side, strength: finalStance.strength } // removing rating and concession info
+        let filled: Record<string, any>
+        if (simulation) {
+          filled = fillAgentWithoutStance(tpl, postTitle, postDescription, redditRole)
+        } else {
+          const s = stance[slot]
+          const [withStance, finalStance] = fillAgentStance(tpl, topicInfo, s.rating, s.rating, postTitle, postDescription, redditRole)
+          filled = withStance
+          stance[slot] = { side: finalStance.side, strength: finalStance.strength } // removing rating and concession info
+        }
 
         // Agent prompts can reference simulation blocks too, so they go through
         // the same resolution as the mediator's.
@@ -362,8 +385,9 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const agents = cohortAgents.flat() 
 
   const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length)
-  // Nothing to randomize a bias for when the run has no mediator.
-  template.experiment.variableConfigs = mediatorR1 ? [BIAS_VARIABLE_CONFIG] : []
+  // Nothing to randomize a bias for when the run has no mediator, or when it is a
+  // simulation-toolkit conversation with no sides to favor.
+  template.experiment.variableConfigs = mediatorR1 && !simulation ? [BIAS_VARIABLE_CONFIG] : []
 
   // A cohort holds exactly the run's participants, however many that is.
   template.experiment.defaultCohortConfig.minParticipantsPerCohort = participantSlots.length
@@ -464,13 +488,16 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
   const cohorts = cohortIds.map((cid, i) => {
     const cohortUrl = `${FRONTEND_BASE}/#/e/${expId}/c/${cid}`
-    // Stances only ever describe the agents, so a run without any leaves them out.
-    const stances = agentSlots.length > 0 ? { agent_stances: agentStances[i] } : {}
+    // Stances only ever describe the agents, so a run without any leaves them out,
+    // and a simulation-toolkit run draws neither stances nor a mediator bias.
+    const stances = simulation
+      ? {}
+      : { ...(agentSlots.length > 0 ? { agent_stances: agentStances[i] } : {}), mediator_bias: biasFor(i) }
 
     // A batch simulation runs itself with nobody watching, so it reports the
-    // stances and hides the links.
+    // cohort (and any stances) and hides the links.
     if (action === 'simulate') {
-      return { ...stances, mediator_bias: biasFor(i) }
+      return { cohort_id: cid, ...stances }
     }
 
     // One entry per seat, in the order the seats were laid out, so a run that
@@ -485,12 +512,13 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
       return { url, type, ...(role ? { role } : {}) }
     })
 
-    return { cohort_id: cid, participant_urls, ...stances, mediator_bias: biasFor(i) }
+    return { cohort_id: cid, participant_urls, ...stances }
   })
 
   return {
     mode,
-    topic: topicInfo.name,
+    // The debate topic; a simulation-toolkit run has none to report.
+    ...(simulation ? {} : { topic: topicInfo.name }),
     experiment_id: expId,
     // experiment_url: experimentUrl,
     cohorts,

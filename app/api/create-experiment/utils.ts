@@ -142,19 +142,63 @@ export function fillAgentStance(
   const [label, action] = side === 'support' ? ['AGREEMENT', 'support'] : ['DISAGREEMENT', 'oppose']
 
   agentTemplate["concede_strength"] = concede_strength
-  const substitutions: Record<string, string> = {
+  substituteAgentTokens(agentTemplate, {
     '{topic_name}': topicInfo.name,
     '{statement}': topicInfo.statement,
     '{stance_label}': label,
     '{stance_action}': action,
     '{stance_strength}': strength,
     '{stance_strength_raw}': rating.toString(),
+    ...postSubstitutions(postTitle, postDescription, redditRole),
+  })
+
+  const agentStance = { side: label, strength, rating, concede_strength }
+  return [agentTemplate, agentStance]
+}
+
+// The topic lines a mediator or assistant prompt may carry. A simulation-toolkit
+// run has no debate topic (it passes null), so the tokens are blanked there.
+export function topicTokens(topicInfo: Record<string, any> | null): Record<string, string> {
+  if (!topicInfo) return { '{topic_name}': '', '{topic_statement}': '' }
+  return { '{topic_name}': `Debate Topic: ${topicInfo.name}`, '{topic_statement}': `Debate Statement: ${topicInfo.statement}` }
+}
+
+function postSubstitutions(postTitle?: string, postDescription?: string, redditRole?: string): Record<string, string> {
+  return {
     '{post_title}': postTitle ?? '',
     '{post_description}': postDescription ?? '',
     '{reddit_role}': redditRole ?? '',
     '{article_title}': postTitle ?? '',
     '{article_body}': postDescription ?? '',
   }
+}
+
+/**
+ * Fills an agent for a simulation-toolkit run, which is a conversation rather
+ * than a debate: there is no statement to take a side on, so no stance is drawn
+ * and nothing concedes. Leftover topic and stance tokens in a prompt written for
+ * the debate toolkit are blanked rather than left in the text verbatim.
+ */
+export function fillAgentWithoutStance(
+  agentTemplate: Record<string, any>,
+  postTitle?: string,
+  postDescription?: string,
+  redditRole?: string,
+): Record<string, any> {
+  agentTemplate["concede_strength"] = null
+  substituteAgentTokens(agentTemplate, {
+    '{topic_name}': '',
+    '{statement}': '',
+    '{stance_label}': '',
+    '{stance_action}': '',
+    '{stance_strength}': '',
+    '{stance_strength_raw}': '',
+    ...postSubstitutions(postTitle, postDescription, redditRole),
+  })
+  return agentTemplate
+}
+
+function substituteAgentTokens(agentTemplate: Record<string, any>, substitutions: Record<string, string>): void {
   const substituteInBlocks = (items: any[] | undefined) => {
     for (const item of items ?? []) {
       if (item.type === 'TEXT') {
@@ -185,9 +229,6 @@ export function fillAgentStance(
       }
     }
   }
-
-  const agentStance = { side: label, strength, rating, concede_strength }
-  return [agentTemplate, agentStance]
 }
 
 export function wrapChars(statement: string, charsPerLine = 30): string {

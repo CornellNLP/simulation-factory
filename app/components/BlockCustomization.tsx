@@ -174,9 +174,10 @@ export function BlockCustomization({ blocks, onUpdate }: {
               <button
                 onClick={save}
                 disabled={!editing.name.trim()}
+                title="Applies this block to the simulation being edited — click Save at the top of the page to persist it."
                 className="px-5 py-2 rounded-md border border-neutral-700 bg-neutral-800 text-sm text-neutral-100 hover:bg-neutral-700 hover:border-neutral-600 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Save
+                Done
               </button>
             </div>
           </div>

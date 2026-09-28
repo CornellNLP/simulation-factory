@@ -1,7 +1,51 @@
+# The Simulation Toolkit's own experiment. A simulation is a conversation the
+# toolkit describes itself (its description and blocks fill the chat stage, see
+# applySimulationToChatStage), not a debate over a statement: there is no
+# statement, no pre/post survey and no sides. Everything not set here falls back
+# to templates/defaults/experiment.yaml; lists such as stageConfigs replace the
+# default's outright rather than merging with it.
 topic:
   name: "simulation"
-  statement: 
-  scale_low:
-  scale_high:
-  favor_disagree:
-  favor_agree:
+
+experiment:
+  metadata:
+    publicName: "Simulation"
+    description: ""
+
+stageConfigs:
+  - id: profile
+    kind: profile
+    name: "Profile Setup"
+    descriptions:
+      primaryText: "Set up your profile"
+      infoText: ""
+      helpText: ""
+    progress:
+      minParticipants: 1
+      waitForAllParticipants: false
+      showParticipantProgress: false
+      maxWaitTimeMs: 10000
+      agentJoinTimeMs: 5000
+      lockCohortAtTwoParticipants: false
+      waitStageHasTimer: false
+    profileType: ANONYMOUS_ANIMAL
+
+  - id: chat-round-1
+    kind: chat
+    name: "Conversation"
+    descriptions:
+      primaryText: ""
+      infoText: ""
+      helpText: ""
+    progress:
+      minParticipants: 2
+      waitForAllParticipants: false
+      showParticipantProgress: true
+      maxWaitTimeMs: 210000
+      agentJoinTimeMs: 130000
+      lockCohortAtTwoParticipants: false
+      waitStageHasTimer: false
+    discussions: []
+    timeLimitInMinutes: 9
+    requireFullTime: true
+    numUtterances: 15

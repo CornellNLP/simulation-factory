@@ -1,7 +1,7 @@
 import fs from 'fs'
 import yaml from 'js-yaml'
 import { ASSISTANT_DEFAULT } from '../config'
-import { replaceDefaults, substituteTokens } from '../utils'
+import { replaceDefaults, substituteTokens, topicTokens } from '../utils'
 import {
   buildPromptItems,
   buildPersona,
@@ -63,9 +63,9 @@ export function parseAssistantTemplate(content: string): Record<string, any> {
   return yaml.load(content) as Record<string, any>
 }
 
-export function buildAssistant(stageId: string, assistantTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any>, postTitle?: string, postDescription?: string, assistedRole?: string): AgentAssistantTemplate {
+export function buildAssistant(stageId: string, assistantTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any> | null, postTitle?: string, postDescription?: string, assistedRole?: string): AgentAssistantTemplate {
   let tpl = replaceDefaults(assistantTemplate, loadAssistantTemplate(ASSISTANT_DEFAULT))
-  tpl = substituteTokens(tpl, { '{topic_name}': `Debate Topic: ${topicInfo.name}`, '{topic_statement}': `Debate Statement: ${topicInfo.statement}` })
+  tpl = substituteTokens(tpl, topicTokens(topicInfo))
   return {
     persona: { ...buildPersona(tpl), minCallIntervalMs: tpl.persona.min_call_interval_ms ?? null },
     promptMap: { [stageId]: _chatPrompt(tpl, stageId, stageIdsInOrder, postTitle, postDescription, assistedRole) },

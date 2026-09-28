@@ -198,6 +198,7 @@ function treeReorder(root: PromptItem[], targetArr: PromptItem[], from: number, 
 interface EditorCtx {
   locked: boolean
   blocks: Block[]
+  blocksLoaded?: boolean
   updateItem: (item: PromptItem, updates: PromptItemUpdate) => void
   addItem: (targetArr: PromptItem[], newItem: PromptItem) => void
   deleteItem: (targetArr: PromptItem[], index: number) => void
@@ -239,7 +240,7 @@ function IconButton({ icon, title, onClick }: {
   )
 }
 
-function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext }: {
+function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks }: {
   targetArr: PromptItem[]
   textOnly?: boolean
   blocks?: Block[]
@@ -247,6 +248,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
   showInitializationContext?: boolean
   showCharacterContext?: boolean
   showThoughtHistoryContext?: boolean
+  hideDebateAndParticipantBlocks?: boolean
 }) {
   const { addItem, locked, promptOutputOptions } = useEditorCtx()
   if (locked) return null
@@ -278,7 +280,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
           <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '' } as TextPromptItem)}>
             Freeform Text
           </div>
-          {!assistantMode && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '{topic_name}' } as TextPromptItem)}>
@@ -318,7 +320,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )}
-          {!assistantMode && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.CONTEXT, context: 'before' } as ContextPromptItem)}>
@@ -340,14 +342,18 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                   </div>
                 </>
               )}
-              <div className="my-0.5 border-t border-neutral-700/60" />
-              <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_INFO } as ParticipantInfoPromptItem)}>
-                Participant Info
-              </div>
-              <div className="my-0.5 border-t border-neutral-700/60" />
-              <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
-                Participant Chat Input
-              </div>
+              {!hideDebateAndParticipantBlocks && (
+                <>
+                  <div className="my-0.5 border-t border-neutral-700/60" />
+                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_INFO } as ParticipantInfoPromptItem)}>
+                    Participant Info
+                  </div>
+                  <div className="my-0.5 border-t border-neutral-700/60" />
+                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
+                    Participant Chat Input
+                  </div>
+                </>
+              )}
               {!assistantMode && showInitializationContext !== false && (
                 <>
                   <div className="my-0.5 border-t border-neutral-700/60" />
@@ -397,7 +403,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )} */}
-          {!assistantMode && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.BIASED } as BiasedPromptItem)}>
@@ -409,12 +415,19 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
           {/* Blocks authored in the Simulation Toolkit. They only appear once
               the simulation holding them has been saved. */}
           <div className="my-0.5 border-t border-neutral-700" />
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-widest text-neutral-600">
-            Simulation Blocks
+          <div className="px-3 py-1.5 flex items-center justify-between gap-2">
+            <span className={`text-[11px] font-semibold uppercase tracking-widest ${blocks.length === 0 ? 'text-neutral-700' : 'text-neutral-600'}`}>
+              Simulation Blocks
+            </span>
+            {blocks.length === 0 && (
+              <span className="text-[10px] font-medium normal-case tracking-normal text-neutral-600 bg-neutral-800 rounded px-1.5 py-0.5">
+                Not available
+              </span>
+            )}
           </div>
           {blocks.length === 0 ? (
-            <div className="px-3 pb-2 max-w-56 text-xs text-neutral-600">
-              No blocks yet — add them under Block Customization in the Simulation Toolkit, then save the simulation.
+            <div className="px-3 pb-2 max-w-56 text-xs text-neutral-700">
+              Only available once blocks are defined under Block Customization in the Simulation Toolkit and the simulation is saved.
             </div>
           ) : (
             blocks.map(block => (
@@ -470,19 +483,40 @@ function TextItemEditor({ item }: { item: TextPromptItem }) {
 // simulation no longer defines is flagged rather than dropped — the prompt still
 // runs on the copy it carries.
 function BlockItemEditor({ item }: { item: BlockPromptItem }) {
-  const { blocks } = useEditorCtx()
+  const { blocks, blocksLoaded } = useEditorCtx()
   const live = blocks.find(b => b.name === item.name)
-  const missing = blocks.length > 0 && !live
+  // Without a load signal from the caller, fall back to only flagging when the
+  // simulation has blocks, so nothing is flagged while they are still loading.
+  const missing = (blocksLoaded ?? blocks.length > 0) && !live
   const options = blockDescriptions(live ?? item).filter(d => d.trim() !== '')
 
   return (
     <div
-      title={missing
-        ? `This block is no longer in the selected simulation. It will run with the text saved here:\n\n${describeBlock(item)}`
-        : describeBlock(live ?? item)}
-      className="flex items-center gap-1.5 cursor-default rounded bg-[#e6dcfd] px-3 py-1.5 text-sm font-medium text-neutral-900"
+      title={missing ? undefined : describeBlock(live ?? item)}
+      className={`flex items-center gap-1.5 cursor-default rounded bg-[#e6dcfd] px-3 py-1.5 text-sm font-medium text-neutral-900 ${missing ? 'ring-2 ring-amber-500' : ''}`}
     >
-      {missing ? '⚠ ' : ''}{item.name}
+      {missing && (
+        <span className="group relative flex items-center">
+          <span
+            aria-label="Block deleted from simulation"
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-base font-bold leading-none text-neutral-900"
+          >
+            !
+          </span>
+          <span
+            role="tooltip"
+            className="pointer-events-none invisible absolute left-0 top-full z-50 mt-2 w-72 whitespace-pre-wrap rounded-md border border-amber-500/50 bg-neutral-900 px-3 py-2 text-xs font-normal text-neutral-200 opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100"
+          >
+            <span className="mb-1 block font-semibold text-amber-400">Block deleted from the simulation</span>
+            “{item.name}” was removed from Block Customization in the selected simulation. This prompt still runs with the copy saved here:
+            {'\n\n'}
+            <span className="text-neutral-400">{describeBlock(item) || '(empty)'}</span>
+            {'\n\n'}
+            Remove this block, or re-add a block named “{item.name}” in the Simulation Toolkit to link it again.
+          </span>
+        </span>
+      )}
+      {item.name}
       {options.length > 1 && (
         <span
           title={`One of these ${options.length} options is picked at random for each experiment.`}
@@ -754,6 +788,8 @@ export interface StructuredPromptEditorProps {
   textOnly?: boolean
   /** Blocks of the selected simulation, offered under "Add item". */
   blocks?: Block[]
+  /** Whether `blocks` has loaded; enables the deleted-block warning even when it is empty. */
+  blocksLoaded?: boolean
   assistantMode?: 'wp' | 'reddit'
   // Gates the "Initialization Result" block; omit to keep it always offered
   // (existing callers), pass false where initialization is an optional,
@@ -764,6 +800,11 @@ export interface StructuredPromptEditorProps {
   // Named prompts (with a strictly earlier order) whose output can be pulled
   // in via a "Prompt Output" block.
   promptOutputOptions?: { id: string; label: string }[]
+  // Hides the debate-flavored blocks (Debate Topic/Statement, Participant
+  // Initial Positions, Target Position) and the other-participant blocks
+  // (Participant Info, Participant Chat Input) — none of which apply to the
+  // Agent Participant toolkit.
+  hideDebateAndParticipantBlocks?: boolean
 }
 
 export function StructuredPromptEditor({
@@ -773,11 +814,13 @@ export function StructuredPromptEditor({
   locked = false,
   textOnly = false,
   blocks = [],
+  blocksLoaded,
   assistantMode,
   showInitializationContext,
   showCharacterContext,
   showThoughtHistoryContext,
   promptOutputOptions = [],
+  hideDebateAndParticipantBlocks,
 }: StructuredPromptEditorProps) {
   // A block item carries a copy of its descriptions so the exported template runs
   // without the simulation. Re-editing the block in the Simulation Toolkit would
@@ -808,6 +851,7 @@ export function StructuredPromptEditor({
   const ctx: EditorCtx = {
     locked,
     blocks,
+    blocksLoaded,
     updateItem: (item, updates) => onUpdate(treeUpdateItem(prompt, item, updates)),
     addItem: (targetArr, newItem) => onUpdate(treeAddTo(prompt, targetArr, newItem)),
     deleteItem: (targetArr, index) => onUpdate(treeRemoveFrom(prompt, targetArr, index)),
@@ -829,6 +873,7 @@ export function StructuredPromptEditor({
             showInitializationContext={showInitializationContext}
             showCharacterContext={showCharacterContext}
             showThoughtHistoryContext={showThoughtHistoryContext}
+            hideDebateAndParticipantBlocks={hideDebateAndParticipantBlocks}
           />
         </div>
         <div className="p-3">

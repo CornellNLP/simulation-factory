@@ -1,6 +1,8 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { adminDb } from '../../lib/firebaseAdmin'
-import { DUPLICATE_NAME_ERROR, isAllowedCollection, templatesRef, verifyEmail } from './_lib'
+import {
+  DUPLICATE_NAME_ERROR, isAllowedCollection, slugIdFor, templatesRef, usesSlugIds, verifyEmail, withPersonaId,
+} from './_lib'
 
 // GET /api/templates?collection=mediators — list all saved templates for the user
 export async function GET(req: Request) {
@@ -41,14 +43,25 @@ export async function POST(req: Request) {
       const dup = await t.get(ref.where('name', '==', trimmedName).limit(1))
       if (!dup.empty) throw new Error(DUPLICATE_NAME_ERROR)
 
-      const docRef = ref.doc()
+      let docRef = ref.doc()
+      let saved = content
+      if (usesSlugIds(collection)) {
+        // Another name can slug to the same id ("Voter!" and "voter"), so
+        // number the id until it is free.
+        const base = slugIdFor(trimmedName, collection)
+        docRef = ref.doc(base)
+        for (let n = 2; (await t.get(docRef)).exists; n++) docRef = ref.doc(`${base}-${n}`)
+        saved = withPersonaId(content, docRef.id)
+      }
       const now = FieldValue.serverTimestamp()
-      t.set(docRef, { name: trimmedName, content, createdAt: now, updatedAt: now })
-      t.set(docRef.collection('history').doc(), { content, savedAt: now })
-      return { id: docRef.id }
+      t.set(docRef, { name: trimmedName, content: saved, createdAt: now, updatedAt: now })
+      t.set(docRef.collection('history').doc(), { content: saved, savedAt: now })
+      return { id: docRef.id, content: saved }
     })
 
-    return Response.json({ id: result.id, name: trimmedName }, { status: 201 })
+    // The content comes back because it may have changed (persona.id), and the
+    // editor should hold what was stored.
+    return Response.json({ id: result.id, name: trimmedName, content: result.content }, { status: 201 })
   } catch (e) {
     if (e instanceof Error && e.message === DUPLICATE_NAME_ERROR) {
       return Response.json(
@@ -78,6 +91,7 @@ export async function PATCH(req: Request) {
 
   const ref = templatesRef(email, collection)
   const docRef = ref.doc(id)
+  const savedContent = content !== undefined && usesSlugIds(collection) ? withPersonaId(content, id) : content
 
   try {
     await adminDb.runTransaction(async (t) => {
@@ -92,15 +106,15 @@ export async function PATCH(req: Request) {
         if (!dup.empty && dup.docs[0].id !== id) throw new Error(DUPLICATE_NAME_ERROR)
         update.name = trimmedName
       }
-      if (content !== undefined) {
-        update.content = content
-        t.set(docRef.collection('history').doc(), { content, savedAt: now })
+      if (savedContent !== undefined) {
+        update.content = savedContent
+        t.set(docRef.collection('history').doc(), { content: savedContent, savedAt: now })
       }
 
       t.update(docRef, update)
     })
 
-    return Response.json({ id, name: trimmedName, saved: true })
+    return Response.json({ id, name: trimmedName, content: savedContent, saved: true })
   } catch (e) {
     if (e instanceof Error && e.message === DUPLICATE_NAME_ERROR) {
       return Response.json(

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -18,7 +18,7 @@ import { create } from 'domain'
 import { StructuredOutputSchema, type StructuredOutputConfig } from '../components/StructuredOutputSchema'
 import { startTour } from '../lib/tour'
 import { SimulationBlockPicker } from './SimulationBlockPicker'
-import { useSimulationBlocks } from '../lib/blocks'
+import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
 import { text } from 'stream/consumers'
 import { TOPIC_SETS } from '../lib/topicSets'
 
@@ -48,9 +48,13 @@ function PromptEditorDescription({ description }: { description?: string }) {
 }
 
 
-function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
-  const legend = (bg: string, label: string) => (
-    <span className={`inline-block rounded ${bg} px-1.5 py-0.5 text-neutral-900 font-medium whitespace-nowrap justify-self-start`}>{label}</span>
+function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks }: {
+  textOnly?: boolean
+  simulationBlocks?: Block[]
+  usingDefaultBlocks?: boolean
+}) {
+  const legend = (bg: string, label: string, dim = false) => (
+    <span className={`inline-block rounded px-1.5 py-0.5 font-medium whitespace-nowrap justify-self-start ${dim ? 'bg-neutral-800 text-neutral-500' : `text-neutral-900 ${bg}`}`}>{label}</span>
   )
   return (
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-sm text-neutral-500 space-y-1.5">
@@ -80,8 +84,24 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
         )} */}
         {legend('bg-[#f08673]', 'Target Position')}
         <span>[Use only for the Covert Influence Task] the direction of the covert influence (either Supporting or Opposing the debate statement)</span>
-        {legend('bg-[#e6dcfd]', 'Simulation Blocks')}
-        <span>the blocks you defined under Block Customization in the Simulation Toolkit</span>
+        {simulationBlocks.length === 0 ? (
+          <>
+            {legend('', 'Simulation Blocks', true)}
+            <span className="text-neutral-600">Not available yet — define blocks under Block Customization in the Simulation Toolkit first.</span>
+          </>
+        ) : (
+          simulationBlocks.map(block => (
+            <Fragment key={block.name}>
+              {legend('bg-[#e6dcfd]', `${block.name} (Simulation Block)`)}
+              <span>{describeBlock(block)}</span>
+            </Fragment>
+          ))
+        )}
+        {usingDefaultBlocks && (
+          <p className="col-span-2 text-xs text-neutral-600">
+            More can be defined under Block Customization in the Simulation Toolkit — they'll show up here once saved.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -107,7 +127,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   // Blocks are authored in the Simulation Toolkit and live inside the saved
   // simulation, so they are read-only here. The in-class variant has no
   // simulation toolkit behind it, which is why the picker below is hidden there.
-  const { blocks, simulations, selectedId, setSelectedId } = useSimulationBlocks()
+  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
 
   async function fetchQuota() {
     try {
@@ -541,6 +561,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 simulations={simulations}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
+                error={simulationBlocksError}
               />
             )}
 
@@ -561,7 +582,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 {activePromptTab === 'response' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="A prompt that determines your mediator's interventions during the discussion.  The mediator uses this prompt to generate a message that is sent to participants.  It does so every time the Should Intervene Prompt decides the mediator should intervene." />
-                    <PromptBlockLegend />
+                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     {/* <MediatorSection
                       title="Response Settings"
                       mediatorParsed={mediatorParsed}
@@ -576,6 +597,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       stageId=""
                       onUpdate={updateMediatorPrompt}
                       blocks={blocks}
+                      blocksLoaded={blocksLoaded}
                     />
                     {/* <StructuredOutputSchema
                       config={structuredOutputConfig}
@@ -585,7 +607,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 ) : activePromptTab === 'should-respond' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="Your mediator uses this prompt after each message in the discussion to decide whether this is a good time to intervene.  When the response is true, the mediator uses the Intervention Prompt to generate a message and sends it to the participants. When the response is false the mediator waits for the next participant message. Message sent automatically when the conversation begins." />
-                    <PromptBlockLegend />
+                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     {/* <MediatorSection
                       title="ShouldRespond Settings"
                       mediatorParsed={mediatorParsed}
@@ -600,19 +622,21 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
                       blocks={blocks}
+                      blocksLoaded={blocksLoaded}
                     />
 
                   </div>
                 ) : activePromptTab === 'initialization' ? (
                   <div className="space-y-4">
                         <PromptEditorDescription description="A prompt that is run at the start of the conversation to gather information about the topic, participants, or anything else. This is information that can subsequently be accessed by your mediator during the conversation. (via the Initialization Result variable)." />
-                    <PromptBlockLegend textOnly />
+                    <PromptBlockLegend textOnly simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     <StructuredPromptEditor
                       label="Initialization Prompt Editor"
                       prompt={(mediatorParsed?.initialization_context_prompt ?? mediatorParsed?.preload_context_prompt) as PromptItem[] ?? []}
                       stageId=""
                       onUpdate={updateInitializationContextPrompt}
                       blocks={blocks}
+                      blocksLoaded={blocksLoaded}
                       textOnly={true}
                     />
                   </div>

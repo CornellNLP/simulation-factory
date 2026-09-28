@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -9,11 +9,18 @@ import * as yaml from 'js-yaml'
 import { Nav } from '../components/Nav'
 import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, mediatorMember, type Pairing } from '../components/PairingsEditor'
 import { BlockCustomization, DEFAULT_BLOCKS, type Block } from '../components/BlockCustomization'
-import { normalizeBlock } from '../lib/blocks'
+import { normalizeBlock, announceSimulationSaved } from '../lib/blocks'
+import { readDraft, writeDraft } from '../lib/drafts'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { useSavedAgents } from '../lib/agents'
 import { useSavedMediators } from '../lib/mediators'
 import { useSavedAssistants } from '../lib/assistants'
+import { useAutoSave, useSaveOnLeave } from '../lib/saveOnLeave'
+import {
+  DEFINITION_KINDS, addToLibrary, describeRefs, fetchLibrary, missingDefinitions, parseContent, readDefinitions,
+  referencedIds, renameInPairings, sameContent, templatesForPairing, withLibraryDefinitions,
+  type DefinitionKind, type DefinitionRef, type Definitions, type SimulationData,
+} from '../lib/simulationDefinitions'
 
 const DEFAULT_SIMULATION = {
   description: '',
@@ -30,8 +37,99 @@ type SimRun = { experiment: string; repeats: string }
 
 const EMPTY_RUN: SimRun = { experiment: '', repeats: '1' }
 
+// What survives navigating away from this page: which saved simulation was
+// open (null for one never saved), plus the unsaved edits on top of it.
+type SimulationDraft = {
+  lastSavedName: string | null
+  simulationData: string | null
+  templateName: string
+  runs: SimRun[]
+}
+const DRAFT_SCOPE = 'simulation'
+
 // How many times a single experiment may be run.
 const MAX_RUNS = 5
+
+const POLL_INTERVAL_MS = 10000
+const MAX_WAIT_TIME_MS = 300000
+// The chat time limit the backend falls back to for an all-agent run when the
+// simulation sets no max_time (see `isSim` in the generator).
+const DEFAULT_CHAT_MINUTES = 9
+// Time before the chat starts (profile stage, agents joining — up to 130s) plus
+// a little for the last messages to land, on top of the chat's own limit.
+const PRE_CHAT_BUFFER_MS = 180000
+
+// One Simulate Conversation result: the experiment it created and, once its
+// discussions finish, the export that holds them.
+type SimResult = { label: string; state: ActionState; experimentId?: string; export?: unknown }
+
+type SimExport = {
+  experiment?: { id?: string }
+  cohortMap?: Record<string, { cohort?: { stageUnlockMap?: Record<string, boolean> } }>
+  participantMap?: Record<string, { profile?: {
+    currentCohortId?: string
+    currentStageId?: string
+    agentConfig?: { agentId?: string }
+    timestamps?: { readyStages?: Record<string, unknown> }
+  } }>
+  agentParticipantMap?: Record<string, unknown>
+}
+
+// How long every participant of a cohort may sit ready in a stage the cohort
+// never unlocked before the discussion is reported as stuck. The backend gives
+// up on unlocking within seconds, so a minute is well past any honest delay.
+const STUCK_AFTER_MS = 60000
+
+// The stage each cohort is stuck in: everyone in it is ready in the same stage,
+// yet the cohort never unlocked it, so nothing will ever happen there.
+function lockedCohortStages(exp: SimExport): Map<string, string> {
+  const byCohort = new Map<string, { stage?: string; ready: boolean }[]>()
+  for (const p of Object.values(exp.participantMap ?? {})) {
+    const cid = p?.profile?.currentCohortId
+    if (!cid) continue
+    const stage = p.profile?.currentStageId
+    const list = byCohort.get(cid) ?? []
+    list.push({ stage, ready: !!(stage && p.profile?.timestamps?.readyStages?.[stage]) })
+    byCohort.set(cid, list)
+  }
+  const locked = new Map<string, string>()
+  for (const [cid, list] of byCohort) {
+    const stage = list[0]?.stage
+    const unlocked = exp.cohortMap?.[cid]?.cohort?.stageUnlockMap?.[stage ?? '']
+    if (stage && !unlocked && list.every(p => p.stage === stage && p.ready)) locked.set(cid, stage)
+  }
+  return locked
+}
+
+// Trims an export down to the cohorts that finished, so a run that timed out
+// still hands back the discussions it did complete.
+function keepFinishedCohorts(exp: SimExport, finished: Set<string>): SimExport {
+  const participantMap = Object.fromEntries(
+    Object.entries(exp.participantMap ?? {}).filter(([, p]) => finished.has(p?.profile?.currentCohortId ?? '')),
+  )
+  const usedAgentIds = new Set(
+    Object.values(participantMap).map(p => p?.profile?.agentConfig?.agentId).filter(Boolean),
+  )
+  return {
+    ...exp,
+    cohortMap: Object.fromEntries(Object.entries(exp.cohortMap ?? {}).filter(([cid]) => finished.has(cid))),
+    participantMap,
+    agentParticipantMap: Object.fromEntries(
+      Object.entries(exp.agentParticipantMap ?? {}).filter(([aid]) => usedAgentIds.has(aid)),
+    ),
+  }
+}
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 // Brings a saved simulation up to the shape the editor works in: pairings need
 // an id to be referenceable, members need to be participant/assistant pairs
@@ -56,54 +154,21 @@ function migrateSimulation(content: string): string {
   }
 }
 
-// Reads one saved template's body out of the user's library. Returns null when
-// it no longer resolves — an agent deleted after the simulation was saved, say —
-// so a stale pick degrades to the stock template instead of failing the run.
-async function loadTemplateContent(
-  collection: 'agents' | 'mediators' | 'assistants-reddit',
-  id: string,
-  token: string,
-): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/templates/load?collection=${collection}&id=${encodeURIComponent(id)}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    )
-    if (!res.ok) return null
-    return (await res.json()).content ?? null
-  } catch {
-    return null
-  }
-}
-
-/**
- * Turns a pairing's picks into the template payload create-experiment expects.
- *
- * `agentTemplates` stays positional — one entry per agent slot, null where the
- * pick did not resolve — so the backend can fall back per slot rather than
- * losing the alignment between picks and slots. `assistantTemplates` is
- * positional too, but against the *seats*: an assistant can stand behind a human
- * seat as well as an agent one, and the backend attaches both by slot.
- */
-async function resolvePairingTemplates(pairing: Pairing, token: string) {
-  const { agentIds, seatAssistantIds, mediatorId, hasMediator } = summarizePairing(pairing)
-  const agentTemplates = await Promise.all(
-    agentIds.map(id => loadTemplateContent('agents', id, token)),
-  )
-  const assistantTemplates = await Promise.all(
-    seatAssistantIds.map(id => (id ? loadTemplateContent('assistants-reddit', id, token) : null)),
-  )
-  const mediatorTemplate = mediatorId
-    ? await loadTemplateContent('mediators', mediatorId, token)
-    : null
-  return {
-    agentTemplates,
-    assistantTemplates,
-    mediatorTemplate,
-    // A pick that failed to load still counts as "a mediator joins", so the run
-    // keeps its shape and uses the stock preset.
-    mediator: mediatorTemplate ? 'template' : hasMediator ? 'preset' : 'none',
-  }
+// Picker options: the library, plus anything embedded in the simulation that the
+// library does not hold, labelled so it is clear the pick lives only in the file.
+function pickerOptions(
+  library: { id: string; name: string }[],
+  definitions: Definitions,
+  kind: DefinitionKind,
+  value: (id: string) => string,
+) {
+  const known = new Set(library.map(t => t.id))
+  return [
+    ...library.map(t => ({ value: value(t.id), label: t.name })),
+    ...Object.entries(definitions[kind])
+      .filter(([id]) => !known.has(id))
+      .map(([id, def]) => ({ value: value(id), label: `${def.name} (this simulation only)` })),
+  ]
 }
 
 // The backend lays a run out from its seats, but still labels the experiment by
@@ -132,26 +197,14 @@ export default function SimulationPage() {
   // Agents come from the Agent Participants toolkit, so saving one there makes
   // it selectable in the Pairings below.
   const { agents } = useSavedAgents()
-  const agentOptions = useMemo(
-    () => agents.map(a => ({ value: a.id, label: a.name })),
-    [agents],
-  )
 
   // Mediators come from the Mediator Toolkit the same way, so a mediator saved
   // there is selectable here without anything else being wired up.
   const { mediators } = useSavedMediators()
-  const mediatorOptions = useMemo(
-    () => mediators.map(m => ({ value: mediatorMember(m.id), label: m.name })),
-    [mediators],
-  )
 
   // Assistants come from the Agent Assistant toolkit, and attach to an agent
   // rather than standing in the conversation on their own.
   const { assistants } = useSavedAssistants()
-  const assistantOptions = useMemo(
-    () => assistants.map(a => ({ value: a.id, label: a.name })),
-    [assistants],
-  )
 
   // saving
   const [savedTemplates, setSavedTemplates] = useState<{ id: string; name: string }[]>([])
@@ -160,8 +213,11 @@ export default function SimulationPage() {
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [showSaveAlert, setShowSaveAlert] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [simulationData, setSimulationData] = useState<string | null>(null)
+  const [syncTick, setSyncTick] = useState(0)
   const [showAsYaml, setShowAsYaml] = useState(false)
   const [runs, setRuns] = useState<SimRun[]>([{ experiment: '', repeats: '1' }])
   const [notice, setNotice] = useState<string | null>(null)
@@ -170,7 +226,13 @@ export default function SimulationPage() {
   // One entry per pairing that was built, in pairing order.
   const [createResults, setCreateResults] = useState<{ label: string; prefix: string; state: ActionState }[]>([])
   // One entry per run row that was submitted, in the order they were listed.
-  const [simResults, setSimResults] = useState<{ label: string; state: ActionState }[]>([])
+  const [simResults, setSimResults] = useState<SimResult[]>([])
+  const [convokitLoading, setConvokitLoading] = useState<number | null>(null)
+  // Bumped on every Simulate (and on unmount) so the watchers from an earlier
+  // batch stop writing into results that no longer belong to them.
+  const simBatchRef = useRef(0)
+  useEffect(() => () => { simBatchRef.current++ }, [])
+  const simWatching = simResults.some(r => r.state.status === 'loading')
 
   const isDirty = simulationData !== null && (simulationData !== lastSavedContent || templateName !== lastSavedName)
 
@@ -187,16 +249,84 @@ export default function SimulationPage() {
   )
   const blocks: Block[] = useMemo(() => simulationParsed?.blocks ?? [], [simulationParsed])
 
-  async function fetchSavedTemplates() {
+  // Embedded picks the library lacks (a file from someone else, or an entry
+  // deleted since) stay selectable, see pickerOptions.
+  const definitions = useMemo(() => readDefinitions(simulationParsed ?? {}), [simulationParsed])
+  const agentOptions = useMemo(() => pickerOptions(agents, definitions, 'agents', id => id), [agents, definitions])
+  const mediatorOptions = useMemo(() => pickerOptions(mediators, definitions, 'mediators', mediatorMember), [mediators, definitions])
+  const assistantOptions = useMemo(() => pickerOptions(assistants, definitions, 'assistants', id => id), [assistants, definitions])
+
+  // Re-reads every referenced agent, mediator and assistant from the library
+  // and embeds their current bodies, so an edit made in another tab reaches
+  // this simulation (and, through autosave, its saved copy). Applied to the
+  // latest state rather than the one this call started from, so an edit made
+  // while the library was loading is not lost. Resolves to the synced data.
+  const simulationRef = useRef(simulationData)
+  useEffect(() => { simulationRef.current = simulationData }, [simulationData])
+  async function syncDefinitions(): Promise<SimulationData | null> {
+    const token = await auth.currentUser?.getIdToken()
+    let data: SimulationData
+    try { data = JSON.parse(simulationRef.current ?? '') } catch { return null }
+    if (!token) return data
+    const library = await fetchLibrary(referencedIds(data.pairings ?? []), token)
+    setSimulationData(prev => {
+      try {
+        const next = JSON.stringify(withLibraryDefinitions(JSON.parse(prev ?? ''), library), null, 2)
+        return next === prev ? prev : next
+      } catch { return prev }
+    })
+    return withLibraryDefinitions(data, library)
+  }
+
+  // Sync whenever the set of picks changes, after a simulation is loaded or
+  // imported (`syncTick`), and when the window regains focus (the Agent,
+  // Mediator or Assistant tab may have saved in the meantime).
+  const refsKey = useMemo(() => JSON.stringify(referencedIds(pairings)), [pairings])
+  useEffect(() => {
+    if (authReady) void syncDefinitions()
+  }, [refsKey, authReady, syncTick])
+  useEffect(() => {
+    const handler = () => { void syncDefinitions() }
+    window.addEventListener('focus', handler)
+    return () => window.removeEventListener('focus', handler)
+  }, [])
+
+  // Set once the page has been restored from the draft; until then the draft
+  // must not be overwritten by the placeholder state the page starts with.
+  const draftRestored = useRef(false)
+
+  // `restoreDraft` is only passed on first load: it reopens whatever was being
+  // edited before navigating away, instead of the most recently saved one.
+  async function fetchSavedTemplates(restoreDraft = false) {
     try {
       const token = await auth.currentUser?.getIdToken()
-      if (!token) return
+      if (!token) { setLoadError('Not signed in — could not load saved simulations.'); return }
       const res = await fetch(`${API_BASE}/api/simulations`, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) return
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setLoadError(`Failed to list saved simulations: ${res.status} ${body.error ?? res.statusText}`)
+        return
+      }
       const data = await res.json()
       setSavedTemplates(data.templates)
+      const draft = restoreDraft ? readDraft<SimulationDraft>(DRAFT_SCOPE) : null
+      const draftBase = draft?.lastSavedName != null
+        ? (data.templates as { id: string; name: string }[]).find(t => t.name === draft.lastSavedName)
+        : undefined
+      // The draft is of a simulation that was never saved, or whose saved copy
+      // has since been deleted: bring it back as unsaved.
+      if (draft && !draftBase && (draft.lastSavedName === null || draft.simulationData !== null)) {
+        if (draft.simulationData !== null) setSimulationData(draft.simulationData)
+        setTemplateName(draft.templateName)
+        setLastSavedContent(null)
+        setLastSavedName(null)
+        setRuns(draft.runs?.length ? draft.runs : [EMPTY_RUN])
+        setLoadError(null)
+        setSyncTick(t => t + 1)
+        return
+      }
       if (data.count > 0) {
-        const first = data.templates[0]
+        const first = draftBase ?? data.templates[0]
         const loadRes = await fetch(`${API_BASE}/api/simulations/load?id=${encodeURIComponent(first.id)}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -208,19 +338,34 @@ export default function SimulationPage() {
           setLastSavedContent(content)
           setLastSavedName(loaded.name)
           setRuns([EMPTY_RUN])
+          setLoadError(null)
+          if (draftBase) {
+            if (draft!.simulationData !== null) setSimulationData(draft!.simulationData)
+            setTemplateName(draft!.templateName)
+            if (draft!.runs?.length) setRuns(draft!.runs)
+          }
+          setSyncTick(t => t + 1)
+        } else {
+          const body = await loadRes.json().catch(() => ({}))
+          setLoadError(`Failed to load "${first.name}": ${loadRes.status} ${body.error ?? loadRes.statusText}`)
         }
       } else {
         setTemplateName('Simulation Export 1')
+        setLoadError(null)
       }
     } catch (e) {
+      setLoadError(`Failed to load saved simulations: ${e instanceof Error ? e.message : String(e)}`)
       console.warn('fetchSavedTemplates failed:', e)
+    } finally {
+      if (restoreDraft) draftRestored.current = true
     }
   }
 
-  async function handleSave() {
-    if (!templateName.trim()) return
+  async function handleSave({ quiet = false } = {}): Promise<boolean> {
+    if (!templateName.trim()) return false
+    setSaveError(null)
     const token = await auth.currentUser?.getIdToken()
-    if (!token) return
+    if (!token) { setSaveError('Not signed in — could not save.'); return false }
 
     setSaving(true)
     try {
@@ -232,13 +377,36 @@ export default function SimulationPage() {
       if (res.ok) {
         setLastSavedContent(simulationData)
         setLastSavedName(templateName.trim())
+        announceSimulationSaved()
+        if (quiet) return true
         await fetchSavedTemplates()
         setShowSaveAlert(true)
+        return true
       }
+      const body = await res.json().catch(() => ({}))
+      setSaveError(`Save failed: ${res.status} ${body.error ?? res.statusText}`)
+      return false
+    } catch (e) {
+      setSaveError(`Save failed: ${e instanceof Error ? e.message : String(e)}`)
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  // Saves a moment after the last edit. Simulations are stored by name, so
+  // this only runs for one already saved under the name in the box — saving
+  // mid-rename would leave a template behind for every half-typed name.
+  const nameUnchanged = lastSavedName !== null && templateName.trim() === lastSavedName
+  useAutoSave(
+    simulationData,
+    isDirty && nameUnchanged && !saving,
+    () => handleSave({ quiet: true }),
+  )
+
+  // Switching tabs through the Nav saves the simulation — prompt blocks,
+  // pairings and all — before leaving.
+  useSaveOnLeave(async () => (isDirty ? handleSave({ quiet: true }) : true))
 
   async function handleLoad(id: string) {
     if (isDirty) {
@@ -258,6 +426,7 @@ export default function SimulationPage() {
     setLastSavedContent(content)
     setLastSavedName(data.name)
     setRuns([EMPTY_RUN])
+    setSyncTick(t => t + 1)
   }
 
   function newSimulation() {
@@ -276,10 +445,81 @@ export default function SimulationPage() {
         setAuthReady(true)
         setUserEmail(user.email)
         setSimulationData(JSON.stringify(DEFAULT_SIMULATION, null, 2))
-        fetchSavedTemplates()
+        fetchSavedTemplates(true)
       }
     })
   }, [router])
+
+  useEffect(() => {
+    if (!draftRestored.current || simulationData === null) return
+    writeDraft<SimulationDraft>(DRAFT_SCOPE, {
+      lastSavedName,
+      simulationData: isDirty ? simulationData : null,
+      templateName,
+      runs,
+    })
+  }, [simulationData, isDirty, lastSavedName, templateName, runs])
+
+  // Blocks are what the mediator / agent-participant / assistant editors read
+  // from the saved simulation, so they are written back even when the full
+  // autosave is holding off (see nameUnchanged). Only the blocks go out: they
+  // are merged into the last-saved copy, so any other unsaved edits here stay
+  // unsaved. A simulation that has never been saved is saved whole under its
+  // current name — unless that name already belongs to another saved
+  // simulation, which autosave must not silently overwrite.
+  const blocksJson = useMemo(() => JSON.stringify(blocks), [blocks])
+  const pendingBlockSave = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    pendingBlockSave.current = null
+    if (!authReady || simulationData === null) return
+    // The full autosave above already covers a simulation saved under the name
+    // in the box; this only fills the gaps it leaves (never saved, or renamed).
+    if (lastSavedName !== null && templateName.trim() === lastSavedName) return
+    // A fresh simulation nobody has touched the blocks of isn't worth saving.
+    if (lastSavedContent === null && blocksJson === JSON.stringify(DEFAULT_BLOCKS)) return
+    let base: Record<string, unknown>
+    try { base = JSON.parse(lastSavedContent ?? simulationData) } catch { return }
+    if (lastSavedContent !== null && JSON.stringify(base.blocks ?? []) === blocksJson) return
+
+    const name = (lastSavedName ?? templateName).trim()
+    if (!name) return
+    if (lastSavedName === null && savedTemplates.some(t => t.name === name)) return
+
+    base.blocks = JSON.parse(blocksJson)
+    const content = lastSavedContent === null ? simulationData : JSON.stringify(base, null, 2)
+
+    const save = async () => {
+      pendingBlockSave.current = null
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) return
+      try {
+        const res = await fetch(`${API_BASE}/api/simulations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name, content }),
+          keepalive: true,
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          setSaveError(`Autosaving blocks failed: ${res.status} ${body.error ?? res.statusText}`)
+          return
+        }
+        const { id } = await res.json()
+        announceSimulationSaved()
+        setLastSavedContent(content)
+        setLastSavedName(name)
+        setSavedTemplates(prev => (prev.some(t => t.id === id) ? prev : [{ id, name }, ...prev]))
+      } catch (e) {
+        setSaveError(`Autosaving blocks failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    pendingBlockSave.current = save
+    const timer = setTimeout(save, 800)
+    return () => clearTimeout(timer)
+  }, [blocksJson, authReady, simulationData, lastSavedContent, lastSavedName, templateName, savedTemplates])
+
+  // Leaving the page inside the debounce window still gets the edit saved.
+  useEffect(() => () => { pendingBlockSave.current?.() }, [])
 
   useEffect(() => {
     if (isDirty) setShowSaveAlert(false)
@@ -313,8 +553,25 @@ export default function SimulationPage() {
     })
   }
 
-  function simulationYaml(): string {
-    try { return yaml.dump(JSON.parse(simulationData ?? '')) } catch { return simulationData ?? '' }
+  // What create-experiment reads as the simulation template. The definitions
+  // travel separately as per-slot templates, so they are left out here.
+  function simulationYaml(data: SimulationData): string {
+    const rest = { ...data }
+    delete rest.definitions
+    return yaml.dump(rest)
+  }
+
+  // Syncs with the library and checks that every pick has a body to run from.
+  // Returns null (with the reason shown) when the run cannot go ahead.
+  async function syncedForRun(): Promise<SimulationData | null> {
+    const data = await syncDefinitions()
+    if (!data) return null
+    const missing = missingDefinitions(data)
+    if (missing.length > 0) {
+      setNotice(`Not in your library and not embedded in this simulation: ${describeRefs(missing)}. Pick a replacement in Pairings, or import a simulation file that includes it.`)
+      return null
+    }
+    return data
   }
 
   // Each selected row becomes its own experiment: the pairing decides how many
@@ -349,16 +606,27 @@ export default function SimulationPage() {
     const idToken = await auth.currentUser?.getIdToken()
     if (!idToken) return
 
-    const simulationTemplate = simulationYaml()
+    const data = await syncedForRun()
+    if (!data) return
+    const runDefinitions = readDefinitions(data)
+    const simulationTemplate = simulationYaml(data)
+    const batch = ++simBatchRef.current
+    // Wait at least as long as the chat is allowed to run, or a healthy
+    // conversation longer than the shared wait limit gets reported as timed out.
+    const maxTime = Number(simulationParsed?.max_time)
+    const chatMinutes = Number.isFinite(maxTime) && maxTime >= 1 ? maxTime : DEFAULT_CHAT_MINUTES
+    const maxWaitMs = Math.max(await fetchSimMaxWaitMs(idToken), chatMinutes * 60000 + PRE_CHAT_BUFFER_MS)
     setNotice(null)
     setSimResults([])
     setSimulating(true)
+    let appended = 0
     try {
       for (const { run, pairingIndex } of queued) {
-        const { agentCount } = summarizePairing(pairings[pairingIndex])
+        const { agentCount, seats } = summarizePairing(pairings[pairingIndex])
         const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
-          await resolvePairingTemplates(pairings[pairingIndex], idToken)
+          templatesForPairing(pairings[pairingIndex], runDefinitions)
         const label = `Experiment ${pairingIndex + 1}`
+        let entry: SimResult
         try {
           const res = await fetch(`${API_BASE}/api/create-experiment`, {
             method: 'POST',
@@ -369,6 +637,9 @@ export default function SimulationPage() {
               mediatorTemplate,
               agentTemplates,
               assistantTemplates,
+              // Laid out from the same seats Create uses, so Simulate runs the
+              // very setup Create would build, only batched into cohorts.
+              seats,
               numAgents: agentCount,
               mode: 'agent-agent',
               action: 'simulate',
@@ -377,13 +648,133 @@ export default function SimulationPage() {
             }),
           })
           const data = await res.json()
-          setSimResults(prev => [...prev, { label, state: { status: res.ok ? 'done' : 'error', result: data } }])
+          const experimentId: string | undefined = res.ok ? data?.experiment_id : undefined
+          entry = experimentId
+            ? { label, experimentId, state: { status: 'loading', result: { message: 'Simulation running — waiting for agents to finish', experiment_id: experimentId } } }
+            : { label, state: { status: 'error', result: data } }
         } catch (e) {
-          setSimResults(prev => [...prev, { label, state: { status: 'error', result: String(e) } }])
+          entry = { label, state: { status: 'error', result: String(e) } }
         }
+        if (simBatchRef.current !== batch) return
+        // Results were cleared above and are only ever appended here, so the
+        // count so far is this entry's position.
+        const index = appended++
+        setSimResults(prev => [...prev, entry])
+        if (entry.experimentId) void watchSimulation(batch, index, entry.experimentId, maxWaitMs)
       }
     } finally {
       setSimulating(false)
+    }
+  }
+
+  async function fetchSimMaxWaitMs(idToken: string): Promise<number> {
+    try {
+      const res = await fetch(`${API_BASE}/api/quota`, { headers: { Authorization: `Bearer ${idToken}` } })
+      if (!res.ok) return MAX_WAIT_TIME_MS
+      return (await res.json()).simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS
+    } catch {
+      return MAX_WAIT_TIME_MS
+    }
+  }
+
+  // Polls one created experiment until every discussion in it ends, then keeps
+  // its export for download. On timeout the export keeps only the discussions
+  // that did finish.
+  async function watchSimulation(batch: number, index: number, experimentId: string, maxWaitMs: number) {
+    const update = (patch: Partial<SimResult>) => {
+      if (simBatchRef.current !== batch) return
+      setSimResults(prev => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+    }
+    const deadline = Date.now() + maxWaitMs
+    let lastExport: SimExport | null = null
+    let finished = new Set<string>()
+    let total = 0
+    // When each cohort was first seen waiting in a stage it never unlocked.
+    const lockedSince = new Map<string, number>()
+
+    while (Date.now() < deadline) {
+      await wait(POLL_INTERVAL_MS)
+      if (simBatchRef.current !== batch) return
+      try {
+        const res = await fetch(`${API_BASE}/api/simulation-status?experimentId=${encodeURIComponent(experimentId)}`)
+        const status = await res.json()
+        if (!res.ok) { update({ state: { status: 'error', result: status } }); return }
+
+        lastExport = status.export
+        const statuses = Object.entries((status.statuses ?? {}) as Record<string, string[]>)
+        total = statuses.length
+        finished = new Set(statuses.filter(([, ss]) => ss.length > 0 && ss.every(s => s === 'SUCCESS')).map(([cid]) => cid))
+
+        if (status.completed) {
+          update({
+            export: status.export,
+            state: { status: 'done', result: { message: `Simulation complete — ${total} discussion${total === 1 ? '' : 's'}`, experiment_id: experimentId } },
+          })
+          return
+        }
+
+        // A cohort whose stage never unlocked will never finish, so waiting out
+        // the full timeout only hides what went wrong. Once every cohort has
+        // either finished or been stuck for a while, stop and say so.
+        const locked = lockedCohortStages(status.export ?? {})
+        for (const cid of lockedSince.keys()) if (!locked.has(cid)) lockedSince.delete(cid)
+        for (const cid of locked.keys()) if (!lockedSince.has(cid)) lockedSince.set(cid, Date.now())
+        const stuck = [...locked.keys()].filter(cid => Date.now() - lockedSince.get(cid)! >= STUCK_AFTER_MS)
+        if (stuck.length > 0 && finished.size + stuck.length >= total) {
+          const stages = [...new Set(stuck.map(cid => locked.get(cid)))].join(', ')
+          const reason = `the backend never unlocked stage "${stages}" although every participant was waiting in it`
+          if (finished.size > 0 && lastExport) {
+            update({
+              export: keepFinishedCohorts(lastExport, finished),
+              state: { status: 'done', result: { message: `${finished.size}/${total} discussions finished; ${stuck.length} never started because ${reason}. The download holds the finished ones only.`, experiment_id: experimentId } },
+            })
+          } else {
+            update({ state: { status: 'error', result: { message: `The discussion never started: ${reason}. Try simulating again.`, experiment_id: experimentId } } })
+          }
+          return
+        }
+
+        update({ state: { status: 'loading', result: { message: `Simulation running: ${finished.size}/${total} discussions finished`, experiment_id: experimentId } } })
+      } catch (e) {
+        update({ state: { status: 'error', result: String(e) } })
+        return
+      }
+    }
+
+    if (lastExport && finished.size > 0) {
+      update({
+        export: keepFinishedCohorts(lastExport, finished),
+        state: { status: 'done', result: { message: `Timed out: ${finished.size}/${total} discussions finished — the download holds the finished ones only`, experiment_id: experimentId } },
+      })
+      return
+    }
+    update({ state: { status: 'error', result: { message: 'Timed out waiting for the simulation to finish.', experiment_id: experimentId } } })
+  }
+
+  function downloadSimExport(result: SimResult) {
+    const id = (result.export as SimExport)?.experiment?.id ?? result.experimentId ?? 'export'
+    downloadBlob(new Blob([JSON.stringify(result.export, null, 2)], { type: 'application/json' }), `simulation-${id}.json`)
+  }
+
+  async function downloadSimConvokit(index: number, result: SimResult) {
+    setConvokitLoading(index)
+    try {
+      const res = await fetch(`${API_BASE}/api/convokit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result.export),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(`ConvoKit conversion failed: ${err.error ?? res.statusText}`)
+        return
+      }
+      const id = (result.export as SimExport)?.experiment?.id ?? result.experimentId ?? 'export'
+      downloadBlob(await res.blob(), `convokit-${id}.zip`)
+    } catch (e) {
+      alert(`ConvoKit conversion error: ${String(e)}`)
+    } finally {
+      setConvokitLoading(null)
     }
   }
 
@@ -417,13 +808,16 @@ export default function SimulationPage() {
     const idToken = await auth.currentUser?.getIdToken()
     if (!idToken) return
 
-    const simulationTemplate = simulationYaml()
+    const data = await syncedForRun()
+    if (!data) return
+    const runDefinitions = readDefinitions(data)
+    const simulationTemplate = simulationYaml(data)
     setCreateResults([])
     setCreating(true)
     try {
       for (const { index, seats } of eligible) {
         const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
-          await resolvePairingTemplates(pairings[index], idToken)
+          templatesForPairing(pairings[index], runDefinitions)
         const label = `Create · Experiment ${index + 1}`
         const prefix = `Exp ${index + 1}`
         try {
@@ -453,9 +847,15 @@ export default function SimulationPage() {
     }
   }
 
-  function downloadSimulation() {
-    let text: string
-    try { text = yaml.dump(JSON.parse(simulationData ?? '')) } catch { text = simulationData ?? '' }
+  // The file carries every pick's current body, so it rebuilds the same
+  // experiment on any account.
+  async function downloadSimulation() {
+    const data = await syncDefinitions()
+    const missing = data ? missingDefinitions(data) : []
+    if (missing.length > 0) {
+      setNotice(`Downloaded without ${describeRefs(missing)}: not in your library and not embedded, so whoever imports this file cannot run those experiments.`)
+    }
+    const text = data ? yaml.dump(data) : simulationData ?? ''
     const url = URL.createObjectURL(new Blob([text], { type: 'text/yaml' }))
     const a = document.createElement('a')
     a.href = url
@@ -466,13 +866,80 @@ export default function SimulationPage() {
 
   function loadSimulationFile(file: File) {
     const reader = new FileReader()
-    reader.onload = () => {
+    reader.onload = async () => {
+      let data: SimulationData
       try {
-        setSimulationData(migrateSimulation(JSON.stringify(yaml.load(String(reader.result)), null, 2)))
-        setRuns([EMPTY_RUN])
-      } catch { /* ignore invalid yaml */ }
+        data = JSON.parse(migrateSimulation(JSON.stringify(yaml.load(String(reader.result)), null, 2)))
+      } catch { return /* ignore invalid yaml */ }
+      if (!data || typeof data !== 'object') return
+      const token = await auth.currentUser?.getIdToken()
+      if (token) data = await reconcileImport(data, token)
+      setSimulationData(JSON.stringify(data, null, 2))
+      setRuns([EMPTY_RUN])
+      setSyncTick(t => t + 1)
     }
     reader.readAsText(file)
+  }
+
+  /**
+   * Decides, for each definition the imported file embeds, whether the library
+   * or the file wins — the library normally does (see syncDefinitions), which
+   * would quietly replace what the file was shared with.
+   *
+   * - The library holds the same id with a different body (an older copy of
+   *   your own file, or someone else's agent that slugged to the same id):
+   *   ask. Keeping the file's version saves it to the library as a new entry
+   *   and points the pairings at that, so the library entry is left alone.
+   * - The library does not hold the id: offer to add it, so it can be edited
+   *   in its own tab. Declined, it stays embedded and runs from the file.
+   */
+  async function reconcileImport(data: SimulationData, token: string): Promise<SimulationData> {
+    const embedded = readDefinitions(data)
+    const library = await fetchLibrary(referencedIds(data.pairings ?? []), token)
+    const differs: DefinitionRef[] = []
+    const unknown: DefinitionRef[] = []
+    for (const kind of DEFINITION_KINDS) {
+      for (const [id, def] of Object.entries(embedded[kind])) {
+        const lib = library[kind][id]
+        if (lib === undefined) continue // no pairing references it
+        if (lib === null) unknown.push({ kind, id })
+        else if (!sameContent(parseContent(lib.content), def.content)) differs.push({ kind, id })
+      }
+    }
+
+    const toAdd: DefinitionRef[] = []
+    if (differs.length > 0 && window.confirm(
+      `This file's version of ${describeRefs(differs)} differs from the one in your library.\n\n`
+      + 'OK: run the file\'s version (it is saved to your library as a new copy).\n'
+      + 'Cancel: use your library\'s current version.',
+    )) toAdd.push(...differs)
+    if (unknown.length > 0 && window.confirm(
+      `This file includes ${describeRefs(unknown)}, which your library does not have.\n\n`
+      + 'OK: add them to your library so you can edit them in their own tabs.\n'
+      + 'Cancel: keep them only inside this simulation.',
+    )) toAdd.push(...unknown)
+
+    const failed: DefinitionRef[] = []
+    let pairings: Pairing[] = data.pairings ?? []
+    const definitions = embedded
+    for (const ref of toAdd) {
+      const def = embedded[ref.kind][ref.id]
+      const newId = await addToLibrary(ref.kind, def, token)
+      if (!newId) { failed.push(ref); continue }
+      if (newId !== ref.id) {
+        pairings = renameInPairings(pairings, ref.kind, ref.id, newId)
+        delete definitions[ref.kind][ref.id]
+      }
+      definitions[ref.kind][newId] = def
+    }
+
+    const missing = missingDefinitions({ ...data, definitions })
+    const problems = [
+      failed.length > 0 ? `Could not add ${describeRefs(failed)} to your library; they still run from this file.` : '',
+      missing.length > 0 ? `This file references ${describeRefs(missing)} without including them, so experiments that use them cannot run.` : '',
+    ].filter(Boolean)
+    setNotice(problems.length > 0 ? problems.join(' ') : null)
+    return { ...data, pairings, definitions }
   }
 
   if (!authReady) return (
@@ -521,7 +988,7 @@ export default function SimulationPage() {
               className="flex-1 px-3 py-1.5 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-500"
             />
             <button
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={saving}
               className={`px-3 py-1.5 rounded-md border text-sm transition-colors cursor-pointer disabled:opacity-50 ${saving
                   ? 'border-neutral-700 bg-neutral-900 text-neutral-400'
@@ -573,6 +1040,32 @@ export default function SimulationPage() {
             </div>
           )}
 
+          {saveError && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-red-600/40 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+              <p>{saveError}</p>
+              <button
+                onClick={() => setSaveError(null)}
+                className="text-red-400 hover:text-red-200 cursor-pointer leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {loadError && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-red-600/40 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+              <p>{loadError}</p>
+              <button
+                onClick={() => setLoadError(null)}
+                className="text-red-400 hover:text-red-200 cursor-pointer leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* Conversation parameters */}
           <div className="space-y-4">
             <div className="border-b border-neutral-800 pb-3">
@@ -594,6 +1087,9 @@ export default function SimulationPage() {
                 blocks={blocks}
                 onUpdate={next => updateSimulationField('blocks', next)}
               />
+              <p className="text-xs text-neutral-600">
+                Blocks save automatically, so they show up under “Add item” in the other toolkits right away. Other changes still need <span className="text-neutral-400">Save</span>.
+              </p>
             </Field>
 
             <Field label="Max Utterance">
@@ -769,11 +1265,29 @@ export default function SimulationPage() {
           <ActionButton
             label="Simulate"
             loadingLabel="Simulating…"
-            loading={simulating}
+            loading={simulating || simWatching}
             onClick={handleSimulate}
           />
-          {simResults.map(({ label, state }, i) => (
-            <ResultBox key={i} title={label} state={state} showMessage />
+          {simResults.map((result, i) => (
+            <div key={i} className="space-y-2">
+              <ResultBox title={result.label} state={result.state} showMessage />
+              {result.export != null && (
+                <div className="flex gap-2">
+                  <ActionButton
+                    label="Download results (JSON)"
+                    loadingLabel="Downloading…"
+                    loading={false}
+                    onClick={() => downloadSimExport(result)}
+                  />
+                  <ActionButton
+                    label="Download ConvoKit (zip)"
+                    loadingLabel="Converting…"
+                    loading={convokitLoading === i}
+                    onClick={() => downloadSimConvokit(i, result)}
+                  />
+                </div>
+              )}
+            </div>
           ))}
         </div>
 

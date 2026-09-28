@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -11,6 +11,8 @@ import { ActionButton, ResultBox, type ActionState } from '../components/Experim
 import { MediatorSection } from '../components/MediatorSection'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
+import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
+import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
 import { ARTICLE_PAGES } from './topics'
 import { POLICIES, PolicyType, type Policy } from './retrieval'
 
@@ -25,9 +27,12 @@ function PromptEditorDescription({ description }: { description: string }) {
   )
 }
 
-function PromptBlockLegend() {
-  const legend = (bg: string, label: string) => (
-    <span className={`inline-block rounded ${bg} px-1.5 py-0.5 text-neutral-900 font-medium whitespace-nowrap justify-self-start`}>{label}</span>
+function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
+  simulationBlocks?: Block[]
+  usingDefaultBlocks?: boolean
+}) {
+  const legend = (bg: string, label: string, dim = false) => (
+    <span className={`inline-block rounded px-1.5 py-0.5 font-medium whitespace-nowrap justify-self-start ${dim ? 'bg-neutral-800 text-neutral-500' : `text-neutral-900 ${bg}`}`}>{label}</span>
   )
   return (
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-sm text-neutral-500 space-y-1.5">
@@ -43,6 +48,24 @@ function PromptBlockLegend() {
         <span>the assisted participant's profile info</span>
         {legend('bg-[#dce1fd]', 'Participant Chat Input')}
         <span>the participant's current, unsent chat draft</span>
+        {simulationBlocks.length === 0 ? (
+          <>
+            {legend('', 'Simulation Blocks', true)}
+            <span className="text-neutral-600">Not available yet — define blocks under Block Customization in the Simulation Toolkit first.</span>
+          </>
+        ) : (
+          simulationBlocks.map(block => (
+            <Fragment key={block.name}>
+              {legend('bg-[#e6dcfd]', `${block.name} (Simulation Block)`)}
+              <span>{describeBlock(block)}</span>
+            </Fragment>
+          ))
+        )}
+        {usingDefaultBlocks && (
+          <p className="col-span-2 text-xs text-neutral-600">
+            More can be defined under Block Customization in the Simulation Toolkit — they'll show up here once saved.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -56,6 +79,8 @@ export default function AssistantPage() {
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [simQuota, setSimQuota] = useState<{ used: number; limit: number; simMaxWaitTimeMs: number } | null>(null)
+
+  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
 
   const [assistantData, setAssistantData] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -97,11 +122,11 @@ export default function AssistantPage() {
   }
 
   const getDefaultContent = useCallback(async () => {
+    // persona.id is left as the file has it: saving sets it to the saved
+    // assistant's id.
     const defaultsText = await fetch(`${API_BASE}/templates/wikipedia/assistant.yaml`).then(res => res.text())
-    const parsed = yaml.load(defaultsText) as { persona: { id: string } }
-    if (userEmail) parsed.persona.id = `${userEmail.split('@')[0]}-assistant`
-    return JSON.stringify(parsed, null, 2)
-  }, [userEmail])
+    return JSON.stringify(yaml.load(defaultsText), null, 2)
+  }, [])
 
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {
@@ -427,6 +452,13 @@ export default function AssistantPage() {
             </div>
             <p className="text-sm text-neutral-500">Here you can edit the prompts that guide your assistant. The <span className="text-neutral-400">Assistant Prompt</span> controls the guidance it sends the participant; the <span className="text-neutral-400">Should Intervene</span> prompt decides whether now is a good time to send it.</p>
 
+            <SimulationBlockPicker
+              simulations={simulations}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              error={simulationBlocksError}
+            />
+
             <div className="rounded-lg border border-neutral-800">
               <div className="flex border-b border-neutral-800 bg-neutral-900/60">
                 {(['response', 'should-respond'] as const).map(tab => (
@@ -443,25 +475,29 @@ export default function AssistantPage() {
                 {activePromptTab === 'response' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="A prompt that determines how your assistant privately helps a single participant during the discussion. The assistant only responds to that participant — it never posts to the shared conversation. It generates a message every time the Should Intervene Prompt decides the assistant should respond." />
-                    <PromptBlockLegend />
+                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     <StructuredPromptEditor
                       label="Assistant Prompt Editor"
                       prompt={(assistantParsed?.prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateAssistantPrompt}
                       assistantMode="wp"
+                      blocks={blocks}
+                      blocksLoaded={blocksLoaded}
                     />
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <PromptEditorDescription description="Your assistant uses this prompt after each update to the participant's draft or the conversation to decide whether this is a good time to offer guidance. When the response is true, the assistant uses the Assistant Prompt to generate a message; when false, it waits." />
-                    <PromptBlockLegend />
+                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     <StructuredPromptEditor
                       label="Should Intervene Prompt Editor"
                       prompt={(assistantParsed?.should_respond_prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
                       assistantMode="wp"
+                      blocks={blocks}
+                      blocksLoaded={blocksLoaded}
                     />
                   </div>
                 )}

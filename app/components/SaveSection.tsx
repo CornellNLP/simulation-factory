@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import { TemplateNameModal } from './TemplateNameModal'
+import { useAutoSave, useSaveOnLeave } from '../lib/saveOnLeave'
+import { readDraft, writeDraft } from '../lib/drafts'
+
+// What survives navigating away: which template was open, plus its unsaved
+// content when there is any.
+type SaveSectionDraft = { activeId: string; content: string | null }
 
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
 
@@ -36,10 +42,22 @@ export function SaveSection({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const bootstrapped = useRef(false)
+  const draftScope = `template:${collection}`
 
   const isDirty = content !== null && content !== lastSavedContent
+  // The content on screen right now, so a save that finishes after more typing
+  // can tell it would overwrite those edits.
+  const contentRef = useRef(content)
+  useLayoutEffect(() => { contentRef.current = content })
 
   useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty])
+
+  // Keep the open template and any unsaved edits in the draft, so coming back
+  // to this page picks up exactly where it was left.
+  useEffect(() => {
+    if (!activeId) return
+    writeDraft<SaveSectionDraft>(draftScope, { activeId, content: isDirty ? content : null })
+  }, [draftScope, activeId, content, isDirty])
   useEffect(() => { if (isDirty) setShowSaveAlert(false) }, [isDirty])
 
   async function authHeader(): Promise<Record<string, string> | null> {
@@ -83,13 +101,19 @@ export function SaveSection({
           const created = await createTemplate(DEFAULT_TEMPLATE_NAME, seed, headers)
           if (created.ok) {
             setItems([{ id: created.id, name: created.name, updatedAt: null }])
-            applyActive(created.id, created.name, seed)
+            applyActive(created.id, created.name, created.content)
           }
         } else {
           setItems(list)
-          const mostRecent = list[0]
-          const loaded = await loadItem(mostRecent.id, headers)
-          if (loaded) applyActive(loaded.id, loaded.name, loaded.content)
+          // Reopen the template from the draft if it still exists, otherwise
+          // the most recently updated one.
+          const draft = readDraft<SaveSectionDraft>(draftScope)
+          const target = list.find(it => it.id === draft?.activeId) ?? list[0]
+          const loaded = await loadItem(target.id, headers)
+          if (loaded) {
+            applyActive(loaded.id, loaded.name, loaded.content)
+            if (draft?.activeId === loaded.id && draft.content !== null) onContentChange(draft.content)
+          }
         }
       } finally {
         setLoading(false)
@@ -103,7 +127,7 @@ export function SaveSection({
     name: string,
     seedContent: string,
     headers: Record<string, string>,
-  ): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+  ): Promise<{ ok: true; id: string; name: string; content: string } | { ok: false; error: string }> {
     const res = await fetch(`${API_BASE}/api/templates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers },
@@ -111,16 +135,18 @@ export function SaveSection({
     })
     if (res.ok) {
       const data = await res.json()
-      return { ok: true, id: data.id, name: data.name }
+      // The server may rewrite the content (agents and assistants get their
+      // persona.id set to the new id), so take its copy over ours.
+      return { ok: true, id: data.id, name: data.name, content: data.content ?? seedContent }
     }
     const data = await res.json().catch(() => ({}))
     return { ok: false, error: data.message ?? 'Failed to create template.' }
   }
 
-  async function handleSaveContent() {
-    if (!activeId || content === null) return
+  async function handleSaveContent({ quiet = false } = {}): Promise<boolean> {
+    if (!activeId || content === null) return false
     const headers = await authHeader()
-    if (!headers) return
+    if (!headers) return false
     setSaving(true)
     try {
       const res = await fetch(`${API_BASE}/api/templates`, {
@@ -129,14 +155,27 @@ export function SaveSection({
         body: JSON.stringify({ collection, id: activeId, content }),
       })
       if (res.ok) {
-        setLastSavedContent(content)
-        setShowSaveAlert(true)
+        const data = await res.json().catch(() => ({}))
+        const saved: string = data.content ?? content
+        // Take the server's rewrite only if nothing was typed while saving;
+        // otherwise the next auto-save sends the newer edits.
+        if (saved !== content && contentRef.current === content) onContentChange(saved)
+        setLastSavedContent(saved)
+        if (!quiet) setShowSaveAlert(true)
         setItems(prev => prev.map(it => it.id === activeId ? { ...it, updatedAt: new Date().toISOString() } : it))
+        return true
       }
+      return false
     } finally {
       setSaving(false)
     }
   }
+
+  // Saves the open template a moment after the last edit.
+  useAutoSave(content, isDirty && !!activeId && !saving, () => handleSaveContent({ quiet: true }))
+
+  // Switching tabs through the Nav saves the open template first.
+  useSaveOnLeave(async () => (isDirty && activeId ? handleSaveContent({ quiet: true }) : true))
 
   async function handleSwitch(id: string) {
     if (id === activeId) return
@@ -169,7 +208,7 @@ export function SaveSection({
     if (!result.ok) return result
 
     setItems(prev => [{ id: result.id, name: result.name, updatedAt: new Date().toISOString() }, ...prev])
-    applyActive(result.id, result.name, seedContent)
+    applyActive(result.id, result.name, result.content)
     return { ok: true as const }
   }
 
@@ -229,7 +268,7 @@ export function SaveSection({
 
         <button
           id="tour-save"
-          onClick={handleSaveContent}
+          onClick={() => handleSaveContent()}
           disabled={saving || !isDirty || !activeId}
           className={`px-3 py-1.5 rounded-md border text-sm transition-colors cursor-pointer disabled:opacity-50 ${saving
             ? 'border-neutral-700 bg-neutral-900 text-neutral-400'
