@@ -12,15 +12,15 @@ const LOCAL = process.env.NODE_ENV === 'development'
 // has no relation to which project the deployed (non-local) URL below points
 // at, so don't assume they're the same string.
 export const BASE_URL = LOCAL
-? 'http://127.0.0.1:5001/traust-491612/us-central1/api/v1'
-: 'https://us-central1-traust-491612.cloudfunctions.net/api/v1'
+? 'http://127.0.0.1:5001/convoarenadev/us-central1/api/v1'
+: 'https://us-central1-convoarenadev.cloudfunctions.net/api/v1'
 
 
 
 
 export const CREATE_PARTICIPANT_URL = LOCAL
-? 'http://127.0.0.1:5001/traust-491612/us-central1/createParticipant'
-: 'https://us-central1-traust-491612.cloudfunctions.net/createParticipant'
+? 'http://127.0.0.1:5001/convoarenadev/us-central1/createParticipant'
+: 'https://us-central1-convoarenadev.cloudfunctions.net/createParticipant'
 
 
 
