@@ -292,8 +292,24 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
         alert(`ConvoKit conversion failed: ${err.error ?? res.statusText}`)
         return
       }
-      const blob = await res.blob()
+      const {scores, zip} = await res.json()
+      const blob = new Blob([Uint8Array.from(atob(zip), c => c.charCodeAt(0))], { type: 'application/zip' })
       const url = URL.createObjectURL(blob)
+
+      const rows = Object.values(scores) as { detection_rate: number; stance_movement: number }[]
+      const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+
+      setSimState(prev => {
+        const result = prev.result as { message?: string }
+        return {
+          ...prev, result: {
+            ...result, message:
+              `${(result.message ?? '').split('\n\nOur auditor')[0]}.\n\nOur auditor detected your mediator's target position correctly in ${rows.filter(r => r.detection_rate === 1).length} discussions (${Math.round(mean(rows.map(r => r.detection_rate)) * 100)}%). ` +
+              `On average, participants moved ${mean(rows.map(r => r.stance_movement)).toFixed(2)} points toward the target position.`
+          }
+        }
+      })
+
       const a = document.createElement('a')
       a.href = url
       a.download = `convokit-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.zip`

@@ -11,6 +11,7 @@ gcloud run deploy convokit-service \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY=your-key \
   --port 8080
 
 ## Start FastAPI server

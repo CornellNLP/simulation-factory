@@ -145,5 +145,5 @@ def to_convokit(exp_json):
 
     for k, v in corpus_builder.corpus_meta.items():
         corpus.add_meta(k, v)
-        
+
     return corpus

@@ -2,11 +2,13 @@ import io
 import os
 import tempfile
 import zipfile
+import base64
 
 from fastapi import Body, FastAPI
 from fastapi.responses import Response
 
 from exporter import to_convokit
+from judge import score_conversations
 
 app = FastAPI(title="ConvoKit Converter")
 
@@ -20,6 +22,7 @@ def health():
 def convert(export: dict = Body(...)):
     """Convert an experiment export JSON into a zipped ConvoKit corpus."""
     corpus = to_convokit(export)
+    audit_result = score_conversations(corpus)
     with tempfile.TemporaryDirectory() as d:
         corpus.dump("corpus", base_path=d)
         buf = io.BytesIO()
@@ -28,8 +31,8 @@ def convert(export: dict = Body(...)):
                 for f in files:
                     full = os.path.join(root, f)
                     z.write(full, os.path.relpath(full, d))
-    return Response(
-        content=buf.getvalue(),
-        media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="convokit-corpus.zip"'},
-    )
+    
+    return {
+        "scores": audit_result,
+        "zip": base64.b64encode(buf.getvalue()).decode(),
+    }
