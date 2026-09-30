@@ -13,7 +13,14 @@ export async function POST(req: Request) {
       return Response.json({ error: `convokit service failed: ${await r.text()}` }, { status: r.status })
     }
     
-    return Response.json(await r.json())
+    // return Response.json(await r.json())
+
+    return new Response(r.body, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': 'attachment; filename="convokit-corpus.zip"',
+      },
+    })
     
   } catch (e) {
     return Response.json({ error: `convokit service unreachable: ${String(e)}` }, { status: 502 })
