@@ -2,7 +2,7 @@ import path from 'path'
 
 export const SEED = 123
 
-const LOCAL = false &&process.env.NODE_ENV === 'development'
+const LOCAL = process.env.NODE_ENV === 'development'
 
 export const BASE_URL = LOCAL
   ? 'http://127.0.0.1:5001/your-project-id/us-central1/api/v1'
