@@ -83,8 +83,10 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
 }
 
 const SUBMISSION_FORMS = {
-  track1: 'https://docs.google.com/forms/d/e/1FAIpQLSeJV2AnhwoZ6zu4ueqEgTsMkGEwxi3Bo4bp_qmenVldiNA7jw/viewform?usp=publish-editor',
-  track2: 'https://docs.google.com/forms/d/e/1FAIpQLSfEF0TXx77hfN9IYgjWFkPbyRkYJcYOsXqfYmdfhsjH4FdQHA/viewform?usp=publish-editor',
+  // track1: 'https://docs.google.com/forms/d/e/1FAIpQLSeJV2AnhwoZ6zu4ueqEgTsMkGEwxi3Bo4bp_qmenVldiNA7jw/viewform?usp=publish-editor',
+  // track2: 'https://docs.google.com/forms/d/e/1FAIpQLSfEF0TXx77hfN9IYgjWFkPbyRkYJcYOsXqfYmdfhsjH4FdQHA/viewform?usp=publish-editor',
+  track1: 'https://docs.google.com/forms/d/e/1FAIpQLSfULMPb-GYe0yDH_tgeHeBj7rlbrRtSJAUshfXH0iOarz739g/viewform?usp=dialog',
+  track2: 'https://docs.google.com/forms/d/e/1FAIpQLSfXFw4DNgfzYcsKnF0f86jQFDUZ2ZWRlTfji26w3TWVvp1D_g/viewform?usp=dialog'
 } as const
 
 const POLL_INTERVAL_MS = 10000
