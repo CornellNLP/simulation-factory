@@ -6,7 +6,7 @@ import { signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
-const INSTRUCTION_URL = 'https://docs.google.com/document/d/1Ej6vWrdo5QLnPVkLzMYu0ESNvd-yHpr6QCq79KZP2VY/edit?usp=sharing'
+const INSTRUCTION_URL = 'https://docs.google.com/document/d/1p_WgWRN9o1EgQ9RR2tqt9bly_ebPphoHhQVpGbTJZu0/edit?usp=sharing'
 const VIDEO_URL = 'https://drive.google.com/file/d/1ELPMxibpd6Fm9m254UIjp1HoSAnNpJHD/preview'
 const CONSENT_FORM_URL = 'https://cornell.ca1.qualtrics.com/jfe/form/SV_afLclmWLfLJL37M'
 
