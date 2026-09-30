@@ -22,7 +22,10 @@ def health():
 def convert(export: dict = Body(...)):
     """Convert an experiment export JSON into a zipped ConvoKit corpus."""
     corpus = to_convokit(export)
-    audit_result = score_conversations(corpus)
+    try:
+        audit_result = score_conversations(corpus)
+    except Exception as e:
+        audit_result = None
     with tempfile.TemporaryDirectory() as d:
         corpus.dump("corpus", base_path=d)
         buf = io.BytesIO()
