@@ -1,0 +1,56 @@
+# Starting point for a new mediator in the Mediator Toolkit (/mediator). Merged
+# over defaults/mediator.yaml like competition/mediator.yaml, but without the
+# debate items (Debate Topic, Debate Statement, Target Position, Participant
+# Initial Positions): the mediator learns about the participants from their
+# profiles and about the topic from the conversation itself.
+prompt:
+  - id: 0
+    type: TEXT
+    text: |
+      You are a mediator in a live conversation.
+
+  - id: 1
+    type: TEXT
+    text: |
+      Help the participants have a meaningful discussion, given the following notes about them:
+
+  - id: 2
+    type: INITIALIZATION_CONTEXT
+
+  - id: 3
+    type: TEXT
+    text: |
+      And given their discussion so far, included below:
+
+  - id: 4
+    type: CONTEXT
+    context: "current"
+
+
+should_respond_prompt:
+  - id: 0
+    type: CONTEXT
+    context: "current"
+
+  - id: 1
+    type: TEXT
+    text: |
+      You are a mediator in this discussion. Decide whether you should intervene now.
+      Intervene if:
+      - The conversation is just starting (no messages yet)
+      - This is a moment of the conversation in which a change of opinion is possible
+
+
+initialization_context_prompt:
+  - id: 0
+    type: TEXT
+    text: |
+      Two participants are about to have a discussion. Their profiles:
+
+  - id: 1
+    type: PARTICIPANT_PROFILES
+
+  - id: 2
+    type: TEXT
+    text: |
+      Note anything about them a mediator should keep in mind.

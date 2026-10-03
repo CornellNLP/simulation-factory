@@ -1,0 +1,96 @@
+# Starting point for a new assistant in the Assistant Toolkit (app/assistant).
+# Those runs send the selected simulation, so the topic comes from its blocks
+# rather than the debate-only {topic_name} token, which a simulation run blanks.
+persona:
+  id: assistant
+  name: AI Assistant
+  avatar: "🤖"
+  pronouns: null
+  min_call_interval_ms: 10000
+model:
+  apiType: GEMINI
+  modelName: gemini-3-flash-preview
+generation:
+  temperature: 0.7
+  reasoning_level: "off"
+  include_reasoning: false
+include_scaffolding_in_prompt: true
+num_retries: 2
+context: "current"
+structured_output:
+  enabled: true
+  append_to_prompt: false
+  message_field: response
+  schema:
+    response:
+      type: STRING
+      description: "Your guidance for the participant."
+
+prompt:
+  - id: 0
+    type: TEXT
+    text: |
+      You are assisting the following user:
+
+  - id: 1
+    type: PARTICIPANT_INFO
+
+  - id: 2
+    type: TEXT
+    text: |
+      Based on the conversation so far, help them understand the other side's position or think through their own response.
+
+  - id: 3
+    type: TEXT
+    text: |
+      The participant is currently drafting the following message (not yet sent):
+
+  - id: 4
+    type: PARTICIPANT_CHAT_INPUT
+
+  - id: 5
+    type: CONTEXT
+
+should_respond_context: "current"
+should_respond_prompt:
+  - id: 0
+    type: TEXT
+    text: |
+      You are assisting the following participant:
+
+  - id: 1
+    type: PARTICIPANT_INFO
+
+  - id: 2
+    type: TEXT
+    text: |
+      The participant is currently drafting the following message (not yet sent):
+
+  - id: 3
+    type: PARTICIPANT_CHAT_INPUT
+
+  # The previous consult, so the assistant can tell whether the draft has moved
+  # on since it last spoke rather than repeating itself.
+  - id: 4
+    type: TEXT
+    text: |
+      Your previous message to this participant:
+
+  - id: 5
+    type: LATEST_ASSISTANT_MESSAGE
+
+  - id: 6
+    type: TEXT
+    text: |
+      The draft you were responding to then:
+
+  - id: 7
+    type: LATEST_PARTICIPANT_DRAFT
+
+  - id: 8
+    type: TEXT
+    text: |
+      Based on the conversation so far, would a message from you be useful and relevant to the participant right now? Avoid repeating your previous message unless the draft has changed in a way that makes it relevant again. The transcript is below.
+
+  - id: 9
+    type: CONTEXT

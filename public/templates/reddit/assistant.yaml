@@ -63,11 +63,17 @@ prompt:
     type: CONTEXT
   - id: 11
     type: TEXT
+    text: |
+      Your previous message to this user (do not repeat it):
+  - id: 12
+    type: LATEST_ASSISTANT_MESSAGE
+  - id: 13
+    type: TEXT
     text: >
       The purpose of your assistance is to guide the user such that their
       message does NOT lead the conversation towards a violation of the
       following rule:
-  - id: 12
+  - id: 14
     type: RULE
     rule: '2'
   - type: TEXT
@@ -78,7 +84,7 @@ prompt:
       conversation is tense and/or whether the current draft is increasing or
       decreasing the tension.  Do not make suggestions about what the user
       should write.
-    id: 13
+    id: 15
 should_respond_context: current
 should_respond_prompt:
   - id: 0
@@ -98,6 +104,23 @@ should_respond_prompt:
     text: 'as a reply to the following conversation:'
   - id: 5
     type: CONTEXT
+  - id: 6
+    type: TEXT
+    text: |
+      Your previous message to this user:
+  - id: 7
+    type: LATEST_ASSISTANT_MESSAGE
+  - id: 8
+    type: TEXT
+    text: |
+      The draft you were responding to then:
+  - id: 9
+    type: LATEST_PARTICIPANT_DRAFT
+  - id: 10
+    type: TEXT
+    text: >
+      If the tension has not changed meaningfully since your previous message,
+      do not intervene again with the same point.
   - type: TEXT
     text: >+
       Based on the conversation and the draft so far, you should decide whether
@@ -107,11 +130,11 @@ should_respond_prompt:
       the draft that the user is writing.
 
 
-    id: 6
-  - id: 7
+    id: 11
+  - id: 12
     type: RULE
     rule: '2'
   - type: TEXT
     text: |
       Lean on the side of intervening when in doubt.
-    id: 8
+    id: 13

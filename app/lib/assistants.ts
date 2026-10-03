@@ -11,8 +11,8 @@ import { API_BASE } from './config'
 export type SavedAssistant = { id: string; name: string }
 
 // The collection the Agent Assistant tab writes to. The nav points that tab at
-// /assistant-reddit, so its library is the one the Pairings editor offers.
-const ASSISTANT_COLLECTION = 'assistants-reddit'
+// /assistant, so its library is the one the Pairings editor offers.
+const ASSISTANT_COLLECTION = 'assistants-simulation'
 
 /**
  * The user's saved assistants.

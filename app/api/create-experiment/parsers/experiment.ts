@@ -34,6 +34,11 @@ export function buildStages(experimentTemplate: Record<string, any>, topicInfo: 
   return experimentTemplate.stageConfigs.map((s: any) => substituteTokens(s, subs))
 }
 
+export type CohortFlags = {
+  publicizeAssistantMessages?: boolean
+  allowPublicMessageDeletion?: boolean
+}
+
 export function buildExperiment(
   experimentTemplate: Record<string, any>,
   topicInfo: Record<string, any>,
@@ -48,7 +53,10 @@ export function buildExperiment(
   postDescription?: string,
   // How many seats the run holds. The cohort has to be sized to it, or a run of
   // three or more would fill up before everyone arrived.
-  participantCount?: number
+  participantCount?: number,
+  // Experiment-wide chat settings from the simulation; each unset one falls
+  // back to the experiment YAML, then off.
+  cohortFlags: CohortFlags = {},
 ): [Record<string, any>, string] {
 
   const subs: Record<string, string> = {
@@ -109,6 +117,9 @@ export function buildExperiment(
         maxParticipantsPerCohort: cohort.maxParticipantsPerCohort ?? 2,
         includeAllParticipantsInCohortCount: cohort.includeAllParticipantsInCohortCount ?? true,
         botProtection: cohort.botProtection ?? false,
+        // Read from here for every cohort; the platform has no per-cohort value.
+        publicizeAssistantMessages: cohortFlags.publicizeAssistantMessages ?? cohort.publicizeAssistantMessages ?? false,
+        allowPublicMessageDeletion: cohortFlags.allowPublicMessageDeletion ?? cohort.allowPublicMessageDeletion ?? false,
       },
       prolificConfig: {
         enableProlificIntegration: prolific.enableProlificIntegration ?? false,

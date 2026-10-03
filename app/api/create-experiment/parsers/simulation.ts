@@ -17,6 +17,10 @@ export interface SimulationTemplate {
   blocks: SimulationBlock[]
   maxUtterance?: number
   maxTime?: number
+  // Experiment-wide chat settings. Unset (every simulation saved before they
+  // existed) leaves them to the experiment YAML, which turns them off.
+  publicizeAssistantMessages?: boolean
+  allowPublicMessageDeletion?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -24,6 +28,10 @@ export interface SimulationTemplate {
 function _positiveNumber(value: unknown): number | undefined {
   const n = Number(value)
   return Number.isFinite(n) && n >= 1 ? n : undefined
+}
+
+function _boolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
 }
 
 // Blocks arrive from a hand-editable YAML file, so tolerate missing fields
@@ -50,6 +58,8 @@ export function parseSimulationTemplate(content: string): SimulationTemplate {
     blocks: _blocks(tpl.blocks),
     maxUtterance: _positiveNumber(tpl.max_utterance),
     maxTime: _positiveNumber(tpl.max_time),
+    publicizeAssistantMessages: _boolean(tpl.publicize_assistant_messages),
+    allowPublicMessageDeletion: _boolean(tpl.allow_public_message_deletion),
   }
 }
 

@@ -37,7 +37,7 @@ async function checkAndIncrementQuota(email: string, cohorts: number): Promise<{
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
-  const { mediatorTemplate, simulationTemplate, assistantTemplate, assistantTemplates, agentTemplate, agentTemplates, mediator = 'template', numAgents, p1 = 'participant-1', p2 = 'participant-2', variant = 'default', mode, seats, numCohorts, numUtterances, action = 'create', idToken, postTitle, postDescription, experimentTemplateSet, agentAssignment, opParticipant } = body as {
+  const { mediatorTemplate, simulationTemplate, assistantTemplate, assistantTemplates, agentTemplate, agentTemplates, mediator = 'template', numAgents, p1 = 'participant-1', p2 = 'participant-2', variant = 'default', mode, seats, numCohorts, numUtterances, action = 'create', idToken, postTitle, postDescription, experimentTemplateSet, agentAssignment, opParticipant, publicizeAssistantMessages, allowPublicMessageDeletion } = body as {
     mediatorTemplate?: string
     simulationTemplate?: string
     assistantTemplate?: string
@@ -72,6 +72,10 @@ export async function POST(req: Request) {
     experimentTemplateSet?: 'reddit' | 'wikipedia'
     agentAssignment?: 'participant-1' | 'participant-2' | 'both'
     opParticipant?: 'participant-1' | 'participant-2'
+    // Experiment-wide chat settings for runs that send no simulation (the
+    // Reddit assistant); a simulation's own settings take precedence.
+    publicizeAssistantMessages?: boolean
+    allowPublicMessageDeletion?: boolean
   }
 
   const parsedCohorts = parseInt(String(numCohorts), 10)
@@ -154,7 +158,11 @@ export async function POST(req: Request) {
     const result = await generate(p1, p2, experimentTemplatePath, mediatorContent, mode, cohortCount, utteranceCount, action,
       simulationTemplate, agentCount, assistantTemplate, postTitle, postDescription, agentAssignment, experimentTemplateSet, opParticipant,
       agentTemplates?.length ? agentTemplates : agentTemplate, seatList,
-      assistantTemplates?.length ? assistantTemplates : undefined)
+      assistantTemplates?.length ? assistantTemplates : undefined,
+      {
+        publicizeAssistantMessages: typeof publicizeAssistantMessages === 'boolean' ? publicizeAssistantMessages : undefined,
+        allowPublicMessageDeletion: typeof allowPublicMessageDeletion === 'boolean' ? allowPublicMessageDeletion : undefined,
+      })
     return Response.json(result)
   } catch (e) {
     console.error('Error in create-experiment:', e)

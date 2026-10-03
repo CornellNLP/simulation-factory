@@ -42,10 +42,10 @@ function _chatPrompt(tpl: Record<string, any>, stageId: string, stageIdsInOrder:
   return {
     id: stageId,
     type: 'chat',
-    prompt: { default: buildPromptItems(tpl, stageId, stageIdsInOrder, [], postTitle, postDescription, assistedRole) },
+    prompt: { default: buildPromptItems(tpl, stageId, stageIdsInOrder, [], postTitle, postDescription, assistedRole, true) },
     order: {},
     addTo: {},
-    shouldRespondPrompt: buildPromptItems({ ...tpl, prompt: tpl.should_respond_prompt, context: tpl.should_respond_context }, stageId, stageIdsInOrder, [], postTitle, postDescription, assistedRole),
+    shouldRespondPrompt: buildPromptItems({ ...tpl, prompt: tpl.should_respond_prompt, context: tpl.should_respond_context }, stageId, stageIdsInOrder, [], postTitle, postDescription, assistedRole, true),
     structuredOutputConfig: buildStructuredOutput(tpl),
     generationConfig: buildGeneration(tpl, 'generation'),
     numRetries: tpl.num_retries,

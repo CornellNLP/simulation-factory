@@ -9,6 +9,8 @@ export interface TemplateNameModalProps {
   sourceOptions?: { id: string; label: string }[]
   onSubmit: (result: { name: string; sourceId?: string }) => Promise<{ ok: true } | { ok: false; error: string }>
   onClose: () => void
+  // What is being named, in the headings and messages.
+  noun?: string
 }
 
 export function TemplateNameModal({
@@ -18,6 +20,7 @@ export function TemplateNameModal({
   sourceOptions,
   onSubmit,
   onClose,
+  noun = 'template',
 }: TemplateNameModalProps) {
   const [name, setName] = useState(initialName)
   const [sourceId, setSourceId] = useState(sourceOptions?.[0]?.id ?? '')
@@ -58,7 +61,7 @@ export function TemplateNameModal({
         className="w-full max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-5 shadow-xl space-y-4"
       >
         <h2 className="text-sm font-semibold text-neutral-200">
-          {mode === 'create' ? 'New template' : 'Rename template'}
+          {mode === 'create' ? `New ${noun}` : `Rename ${noun}`}
         </h2>
 
         <div className="space-y-1.5">
@@ -68,11 +71,11 @@ export function TemplateNameModal({
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="Template name"
+            placeholder={`${noun[0].toUpperCase()}${noun.slice(1)} name`}
             className="w-full px-3 py-1.5 rounded-md border border-neutral-700 bg-neutral-950 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-neutral-500"
           />
           {isDuplicate && (
-            <p className="text-xs text-red-400">A template named "{trimmed}" already exists.</p>
+            <p className="text-xs text-red-400">A {noun} named "{trimmed}" already exists.</p>
           )}
         </div>
 

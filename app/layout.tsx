@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mediator Toolkit",
-  description: "Develop a custom mediator",
+  title: "Toolkit",
+  description: "",
 };
 
 export default function RootLayout({

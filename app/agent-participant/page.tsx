@@ -15,7 +15,7 @@ import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { Nav } from '../components/Nav'
 import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
-import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
+import { useSimulationBlocks, type Block } from '../lib/blocks'
 
 const idle: ActionState = { status: 'idle', result: null }
 
@@ -152,8 +152,8 @@ function PromptBlockLegend({
           : simulationBlocks.map(block => legend(
             `simulation-block-${block.name}`,
             'bg-[#e6dcfd]',
-            `${block.name} (Simulation Block)`,
-            describeBlock(block),
+            `${block.name} (Custom Block)`,
+            'Block defined in the Simulation panel',
           ))}
         {usingDefaultBlocks && (
           <p className="col-span-2 text-xs text-neutral-600">
@@ -871,6 +871,8 @@ export default function AgentParticipantsPage() {
                           prompt={agentParsed?.chatSettings?.initializationPrompt ?? []}
                           stageId=""
                           onUpdate={updateInitializationBlocks}
+                          blocks={blocks}
+                          blocksLoaded={blocksLoaded}
                           showInitializationContext={false}
                           hideDebateAndParticipantBlocks
                         />

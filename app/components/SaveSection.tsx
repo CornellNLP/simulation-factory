@@ -14,15 +14,23 @@ type SaveSectionDraft = { activeId: string; content: string | null }
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
 
 export interface SaveSectionProps {
-  collection: 'mediators' | 'assistants' | 'assistants-reddit' | 'agents'
+  collection: 'mediators' | 'assistants' | 'assistants-reddit' | 'assistants-simulation' | 'agents' | 'simulations'
   content: string | null
   onContentChange: (content: string) => void
   getDefaultContent: () => Promise<string>
   onDirtyChange?: (dirty: boolean) => void
   enabled: boolean
+  // What is being saved, in the labels and messages ("template" by default).
+  noun?: string
+  // Name of the item created for a user who has none yet.
+  defaultName?: string
+  // Brings loaded content up to the shape the page edits (older saves).
+  normalize?: (content: string) => string
+  // Runs after every successful save or create.
+  onSaved?: () => void
+  // Runs after an item is opened, whether on first load, a switch or a create.
+  onLoaded?: () => void
 }
-
-const DEFAULT_TEMPLATE_NAME = 'default template'
 
 export function SaveSection({
   collection,
@@ -31,6 +39,11 @@ export function SaveSection({
   getDefaultContent,
   onDirtyChange,
   enabled,
+  noun = 'template',
+  defaultName = 'My Template',
+  normalize = content => content,
+  onSaved,
+  onLoaded,
 }: SaveSectionProps) {
   const [items, setItems] = useState<SavedTemplateItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -67,10 +80,12 @@ export function SaveSection({
   }
 
   function applyActive(id: string, name: string, loadedContent: string) {
+    const content = normalize(loadedContent)
     setActiveId(id)
     setActiveName(name)
-    setLastSavedContent(loadedContent)
-    onContentChange(loadedContent)
+    setLastSavedContent(content)
+    onContentChange(content)
+    onLoaded?.()
   }
 
   async function fetchItems(headers: Record<string, string>): Promise<SavedTemplateItem[]> {
@@ -98,7 +113,7 @@ export function SaveSection({
         const list = await fetchItems(headers)
         if (list.length === 0) {
           const seed = await getDefaultContent()
-          const created = await createTemplate(DEFAULT_TEMPLATE_NAME, seed, headers)
+          const created = await createTemplate(defaultName, seed, headers)
           if (created.ok) {
             setItems([{ id: created.id, name: created.name, updatedAt: null }])
             applyActive(created.id, created.name, created.content)
@@ -135,6 +150,7 @@ export function SaveSection({
     })
     if (res.ok) {
       const data = await res.json()
+      onSaved?.()
       // The server may rewrite the content (agents and assistants get their
       // persona.id set to the new id), so take its copy over ours.
       return { ok: true, id: data.id, name: data.name, content: data.content ?? seedContent }
@@ -161,6 +177,7 @@ export function SaveSection({
         // otherwise the next auto-save sends the newer edits.
         if (saved !== content && contentRef.current === content) onContentChange(saved)
         setLastSavedContent(saved)
+        onSaved?.()
         if (!quiet) setShowSaveAlert(true)
         setItems(prev => prev.map(it => it.id === activeId ? { ...it, updatedAt: new Date().toISOString() } : it))
         return true
@@ -180,7 +197,7 @@ export function SaveSection({
   async function handleSwitch(id: string) {
     if (id === activeId) return
     if (isDirty) {
-      const ok = window.confirm('You have unsaved changes. Load a different template and discard them?')
+      const ok = window.confirm(`You have unsaved changes. Load a different ${noun} and discard them?`)
       if (!ok) return
     }
     const headers = await authHeader()
@@ -234,7 +251,7 @@ export function SaveSection({
   return (
     <div className="space-y-2 rounded-lg border border-neutral-800 p-3">
       <p className="text-xs text-neutral-500">
-        You're editing <span className="text-neutral-300 font-medium">{activeName || 'a template'}</span>. Use "+ New" to create another, or switch below.
+        You're editing <span className="text-neutral-300 font-medium">{activeName || `a ${noun}`}</span>. Use "+ New" to create another, or switch below.
       </p>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -242,7 +259,7 @@ export function SaveSection({
             type="button"
             onClick={() => setShowRenameModal(true)}
             disabled={!activeId}
-            title="Rename template"
+            title={`Rename ${noun}`}
             className="w-6 h-6 shrink-0 flex items-center justify-center rounded text-sm text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ✎
@@ -260,7 +277,7 @@ export function SaveSection({
           id="tour-new-template"
           type="button"
           onClick={() => setShowCreateModal(true)}
-          title="New template"
+          title={`New ${noun}`}
           className="px-3 py-1.5 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-400 hover:border-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer"
         >
           + New
@@ -289,7 +306,7 @@ export function SaveSection({
             }}
             className="px-3 py-1.5 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-300 hover:border-neutral-500 transition-colors cursor-pointer"
           >
-            <option value="" disabled>Switch template…</option>
+            <option value="" disabled>Switch {noun}…</option>
             {items.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
@@ -299,7 +316,7 @@ export function SaveSection({
 
       {showSaveAlert && (
         <div className="flex items-start justify-between gap-3 rounded-md border border-emerald-600/40 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-300">
-          <p>Template saved!</p>
+          <p>{noun[0].toUpperCase()}{noun.slice(1)} saved!</p>
           <button
             onClick={() => setShowSaveAlert(false)}
             className="text-emerald-400 hover:text-emerald-200 cursor-pointer leading-none"
@@ -315,11 +332,12 @@ export function SaveSection({
           mode="create"
           existingNames={items.map(i => i.name)}
           sourceOptions={[
-            { id: '__default__', label: 'Default Template' },
+            { id: '__default__', label: `Default ${noun[0].toUpperCase()}${noun.slice(1)}` },
             ...items.map(i => ({ id: i.id, label: i.name })),
           ]}
           onSubmit={handleCreate}
           onClose={() => setShowCreateModal(false)}
+          noun={noun}
         />
       )}
 
@@ -330,6 +348,7 @@ export function SaveSection({
           existingNames={items.filter(i => i.id !== activeId).map(i => i.name)}
           onSubmit={handleRename}
           onClose={() => setShowRenameModal(false)}
+          noun={noun}
         />
       )}
     </div>

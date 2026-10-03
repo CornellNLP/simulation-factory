@@ -1,6 +1,6 @@
 import { adminAuth, adminDb } from '../../lib/firebaseAdmin'
 
-export const ALLOWED_COLLECTIONS = ['mediators', 'assistants', 'assistants-reddit', 'agents'] as const
+export const ALLOWED_COLLECTIONS = ['mediators', 'assistants', 'assistants-reddit', 'assistants-simulation', 'agents', 'simulations'] as const
 export type TemplateCollection = typeof ALLOWED_COLLECTIONS[number]
 
 export function isAllowedCollection(c: unknown): c is TemplateCollection {
@@ -28,7 +28,7 @@ export const DUPLICATE_NAME_ERROR = 'duplicate_name'
 // are readable: the document id is a slug of the name, fixed at creation (a
 // rename keeps it, so saved simulations keep resolving), and the template's own
 // persona.id mirrors it. Mediators and simulations keep auto ids.
-const SLUG_ID_COLLECTIONS: readonly TemplateCollection[] = ['agents', 'assistants', 'assistants-reddit']
+const SLUG_ID_COLLECTIONS: readonly TemplateCollection[] = ['agents', 'assistants', 'assistants-reddit', 'assistants-simulation']
 
 export function usesSlugIds(collection: TemplateCollection) {
   return SLUG_ID_COLLECTIONS.includes(collection)

@@ -21,7 +21,7 @@ export const DEFINITION_KINDS: DefinitionKind[] = ['agents', 'mediators', 'assis
 export const KIND_COLLECTION = {
   agents: 'agents',
   mediators: 'mediators',
-  assistants: 'assistants-reddit',
+  assistants: 'assistants-simulation',
 } as const satisfies Record<DefinitionKind, string>
 
 const KIND_LABEL: Record<DefinitionKind, string> = {
