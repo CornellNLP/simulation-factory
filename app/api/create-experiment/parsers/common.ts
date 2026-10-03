@@ -27,7 +27,23 @@ export interface InitializationContextPromptItem {
   type: 'INITIALIZATION_CONTEXT'
 }
 
+export interface PromptOutputPromptItem {
+  type: 'PROMPT_OUTPUT'
+  promptId: string
+}
+
+export interface CharacterContextPromptItem {
+  type: 'CHARACTER_CONTEXT'
+  stageIds: string[]
+}
+
+export interface ThoughtHistoryContextPromptItem {
+  type: 'THOUGHT_HISTORY_CONTEXT'
+  stageIds: string[]
+}
+
 export type PromptItem = StageContextItem | TextPromptItem | ProfileInfoPromptItem | ProfileContextPromptItem | InitializationContextPromptItem
+  | PromptOutputPromptItem | CharacterContextPromptItem | ThoughtHistoryContextPromptItem
 
 export interface StructuredOutputSchemaProperty {
   name: string
@@ -59,6 +75,7 @@ export interface ChatSettings {
   canSelfTriggerCalls: boolean
   initialMessage: string
   wordsPerMinute: number
+  concedeStrength: number
 }
 
 export interface Persona {
@@ -157,6 +174,7 @@ export function buildChatSettings(tpl: Record<string, any>): ChatSettings {
     canSelfTriggerCalls: chatSettings.can_self_trigger_calls,
     initialMessage: chatSettings.initial_message,
     wordsPerMinute: chatSettings.words_per_minute,
+    concedeStrength: tpl.concede_strength ?? 0,
   }
 }
 

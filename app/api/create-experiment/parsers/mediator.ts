@@ -22,7 +22,7 @@ interface ChatPromptConfig {
   id: string
   type: 'chat'
   includeScaffoldingInPrompt: boolean
-  prompt: PromptItem[]
+  prompt: Record<string, PromptItem[]>
   initializationContextPrompt?: PromptItem[]
   shouldRespondPrompt: PromptItem[]
   minParticipantMessagesBeforeResponding: number
@@ -62,7 +62,7 @@ function _chatPrompt(tpl: Record<string, any>, stageId: string, stageIdsInOrder:
     id: stageId,
     type: 'chat',
     includeScaffoldingInPrompt: tpl.include_scaffolding_in_prompt,
-    prompt: buildPromptItems(tpl, stageId, stageIdsInOrder),
+    prompt: { default: buildPromptItems(tpl, stageId, stageIdsInOrder) },
     initializationContextPrompt: (() => { const p = tpl.initialization_context_prompt ?? tpl.preload_context_prompt; const c = tpl.initialization_context_context ?? tpl.preload_context_context; return p?.length ? buildPromptItems({ ...tpl, prompt: p, context: c }, stageId, stageIdsInOrder) : undefined })(),
     shouldRespondPrompt: buildPromptItems({ ...tpl, prompt: tpl.should_respond_prompt, context: tpl.should_respond_context }, stageId, stageIdsInOrder),
     minParticipantMessagesBeforeResponding: tpl.min_participant_messages_before_responding,

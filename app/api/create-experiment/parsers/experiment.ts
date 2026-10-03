@@ -107,6 +107,7 @@ export function buildExperiment(
     stageConfigs: stages,
     agentMediators: [mediator],
     agentParticipants: agents ?? [],
+    agentAssistants: [],
   }
   return [template, cohortAlias]
 }

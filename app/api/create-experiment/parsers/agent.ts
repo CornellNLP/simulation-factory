@@ -17,18 +17,16 @@ interface ChatPromptConfig {
   id: string
   type: 'chat'
   includeScaffoldingInPrompt: boolean
-  concedeStrength: number
-  shouldConcedePrompt: PromptItem[]
   thoughtPrompt: PromptItem[]
-  prompt: PromptItem[]
+  characterPrompt: PromptItem[]
+  prompt: Record<string, PromptItem[]>
+  order: Record<string, string[]>
   shouldRespondPrompt: PromptItem[] | null
   minParticipantMessagesBeforeResponding: number
   structuredOutputConfig: StructuredOutputConfig
   generationConfig: GenerationConfig
   chatSettings: ChatSettings
   numRetries: number
-  includePersona: string[] | null
-  includeThoughtHistory: string[] | null
 }
 
 type GenericPromptConfig = {
@@ -36,11 +34,10 @@ type GenericPromptConfig = {
   type: 'survey'
   includeScaffoldingInPrompt: boolean
   includeConcessionInPrompt: boolean
-  prompt: PromptItem[]
+  prompt: Record<string, PromptItem[]>
+  order: Record<string, string[]>
   generationConfig: GenerationConfig
   numRetries: number
-  includePersona: string[] | null
-  includeThoughtHistory: string[] | null
 }
 
 export interface AgentParticipantTemplate {
@@ -80,6 +77,21 @@ function _thoughtPrompt(tpl: Record<string, any>, stage_id: string): PromptItem[
   ]
 }
 
+function _characterPrompt(tpl: Record<string, any>, stage_id: string): PromptItem[] {
+  return [
+    { type: 'TEXT', text: tpl.persona_prompt },
+    {
+      type: 'STAGE_CONTEXT',
+      stageId: stage_id,
+      includePrimaryText: false,
+      includeInfoText: false,
+      includeHelpText: false,
+      includeStageDisplay: true,
+      includeParticipantAnswers: false,
+    },
+  ]
+}
+
 function _human_style_prompt(tpl: Record<string, any>): PromptItem[] {
   return [{ type: 'TEXT', text: tpl.human_style_prompt }]
 }
@@ -98,18 +110,25 @@ function _chatPrompt(tpl: Record<string, any>, stageId: string, stageIdsInOrder:
     id: stageId,
     type: 'chat',
     includeScaffoldingInPrompt: tpl.include_scaffolding_in_prompt,
-    concedeStrength: tpl.concede_strength,
-    shouldConcedePrompt: _shouldConcedePrompt(tpl, stageId),
     thoughtPrompt: _thoughtPrompt(tpl, stageId),
-    prompt: buildPromptItems(tpl, stageId, stageIdsInOrder, _human_style_prompt(tpl)),
+    characterPrompt: _characterPrompt(tpl, stageId),
+    // step 1 decides whether to concede; step 2 writes the message, seeing step 1's output
+    prompt: {
+      concede: _shouldConcedePrompt(tpl, stageId),
+      message: [
+        ...buildPromptItems(tpl, stageId, stageIdsInOrder, _human_style_prompt(tpl)),
+        { type: 'PROMPT_OUTPUT', promptId: 'concede' },
+        { type: 'CHARACTER_CONTEXT', stageIds: [stageId] },
+        { type: 'THOUGHT_HISTORY_CONTEXT', stageIds: [stageId] },
+      ],
+    },
+    order: { '1': ['concede'], '2': ['message'] },
     shouldRespondPrompt: null,
     minParticipantMessagesBeforeResponding: tpl.min_participant_messages_before_responding,
     structuredOutputConfig: buildStructuredOutput(tpl),
     generationConfig: buildGeneration(tpl, "chat_generation"),
     chatSettings: buildChatSettings(tpl),
     numRetries: tpl.num_retries,
-    includePersona: [stageId],
-    includeThoughtHistory: [stageId],
   }
 }
 
@@ -119,11 +138,11 @@ function _pre_survey_stage(tpl: Record<string, any>, stageId: string, stageIdsIn
     type: 'survey',
     includeScaffoldingInPrompt: true,
     includeConcessionInPrompt: true,
-    prompt: buildPromptItems(tpl, stageId, stageIdsInOrder, _pre_survey_prompt(tpl)),
+    // survey stages must use the "default" key (hardcoded in the backend)
+    prompt: { default: buildPromptItems(tpl, stageId, stageIdsInOrder, _pre_survey_prompt(tpl)) },
+    order: { '1': ['default'] },
     generationConfig: buildGeneration(tpl, "pre_survey_generation"),
     numRetries: tpl.num_retries,
-    includePersona: null,
-    includeThoughtHistory: null,
   }
 }
 
@@ -133,11 +152,16 @@ function _post_survey_stage(tpl: Record<string, any>, stageId: string, stageIdsI
     type: 'survey',
     includeScaffoldingInPrompt: true,
     includeConcessionInPrompt: true,
-    prompt: buildPromptItems(tpl, stageId, stageIdsInOrder, _post_survey_prompt(tpl)),
+    prompt: {
+      default: [
+        ...buildPromptItems(tpl, stageId, stageIdsInOrder, _post_survey_prompt(tpl)),
+        { type: 'CHARACTER_CONTEXT', stageIds: personaStages },
+        { type: 'THOUGHT_HISTORY_CONTEXT', stageIds: thoughtHistoryStages },
+      ],
+    },
+    order: { '1': ['default'] },
     generationConfig: buildGeneration(tpl, "post_survey_generation"),
     numRetries: tpl.num_retries,
-    includePersona: personaStages,
-    includeThoughtHistory: thoughtHistoryStages,
   }
 }
 
