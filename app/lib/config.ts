@@ -1,1 +1,1 @@
-export const API_BASE = "simulation-toolkit";
+export const API_BASE = "simulation-factory";
