@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  basePath: '/simulation-factory',
+  basePath: '/simulation-toolkit',
   serverExternalPackages: ['firebase-admin'],
 };
 
