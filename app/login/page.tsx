@@ -7,15 +7,12 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebas
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
-// The toolkits a signed-in user can open: the Nav's tabs, plus the Reddit and
-// WP assistant pages, which have no tab and are only reached from here.
+// The toolkits a signed-in user can open. Kept in step with the Nav.
 const TOOLKITS = [
   { href: '/simulation', label: 'Simulation', description: 'Pair agents, mediators and assistants, then create or simulate conversations.' },
   { href: '/mediator', label: 'Mediator', description: 'Build and test mediator prompts.' },
   { href: '/agent-participant', label: 'Agent Participant', description: 'Design the agents that take part in a conversation.' },
   { href: '/assistant', label: 'Agent Assistant', description: 'Build assistants that privately help a participant, tested against a simulation.' },
-  { href: '/assistant-reddit', label: 'Agent Assistant - Reddit', description: 'Assistants for ChangeMyView-style Reddit threads.' },
-  { href: '/assistant-wp', label: 'Agent Assistant - WP', description: 'Assistants for Wikipedia article discussions.' },
 ] as const
 
 // `?next=` may only name one of the toolkits, so the link cannot be used to
