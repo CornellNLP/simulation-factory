@@ -7,10 +7,11 @@ import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import * as yaml from 'js-yaml'
 import { Nav } from '../components/Nav'
-import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, mediatorMember, type Pairing } from '../components/PairingsEditor'
+import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, describePairing, mediatorMember, type Pairing } from '../components/PairingsEditor'
 import { BlockCustomization, DEFAULT_BLOCKS, type Block } from '../components/BlockCustomization'
 import { normalizeBlock, announceSimulationSaved } from '../lib/blocks'
 import { readDraft, writeDraft } from '../lib/drafts'
+import { YamlIOSection } from '../components/YamlIOSection'
 import { SaveSection } from '../components/SaveSection'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { useSavedAgents } from '../lib/agents'
@@ -222,7 +223,6 @@ export default function SimulationPage() {
   const [isDirty, setDirty] = useState(false)
   const [simulationData, setSimulationData] = useState<string | null>(null)
   const [syncTick, setSyncTick] = useState(0)
-  const [showAsYaml, setShowAsYaml] = useState(false)
   const [runs, setRuns] = useState<SimRun[]>([{ experiment: '', repeats: '1' }])
   const [notice, setNotice] = useState<string | null>(null)
   const [simulating, setSimulating] = useState(false)
@@ -257,6 +257,9 @@ export default function SimulationPage() {
   const agentOptions = useMemo(() => pickerOptions(agents, definitions, 'agents', id => id), [agents, definitions])
   const mediatorOptions = useMemo(() => pickerOptions(mediators, definitions, 'mediators', mediatorMember), [mediators, definitions])
   const assistantOptions = useMemo(() => pickerOptions(assistants, definitions, 'assistants', id => id), [assistants, definitions])
+
+  const pairingName = (pairing: Pairing) =>
+    describePairing(pairing, { agents: agentOptions, mediators: mediatorOptions, assistants: assistantOptions })
 
   // Re-reads every referenced agent, mediator and assistant from the library
   // and embeds their current bodies, so an edit made in another tab reaches
@@ -392,7 +395,7 @@ export default function SimulationPage() {
     // would sit empty until it timed out.
     const withHuman = queued.find(({ pairingIndex }) => summarizePairing(pairings[pairingIndex]).humanCount > 0)
     if (withHuman) {
-      setNotice(`Experiment ${withHuman.pairingIndex + 1} seats a human, so it cannot be simulated in batch — use Create to get its join link.`)
+      setNotice(`Experiment "${pairingName(pairings[withHuman.pairingIndex])}" includes a Human Participant, so it can't be simulated. Replace the human with an agent, or use Create to get a link for a person to join.`)
       return
     }
 
@@ -400,7 +403,7 @@ export default function SimulationPage() {
     // the lone agent with otherwise.
     const short = queued.find(({ pairingIndex }) => summarizePairing(pairings[pairingIndex]).agentCount < 2)
     if (short) {
-      setNotice(`Experiment ${short.pairingIndex + 1} needs at least 2 agents to simulate.`)
+      setNotice(`Experiment "${pairingName(pairings[short.pairingIndex])}" needs at least 2 agents to simulate.`)
       return
     }
 
@@ -426,7 +429,7 @@ export default function SimulationPage() {
         const { agentCount, seats } = summarizePairing(pairings[pairingIndex])
         const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
           templatesForPairing(pairings[pairingIndex], runDefinitions)
-        const label = `Experiment ${pairingIndex + 1}`
+        const label = pairingName(pairings[pairingIndex])
         let entry: SimResult
         try {
           const res = await fetch(`${API_BASE}/api/create-experiment`, {
@@ -619,7 +622,7 @@ export default function SimulationPage() {
       for (const { index, seats } of eligible) {
         const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
           templatesForPairing(pairings[index], runDefinitions)
-        const label = `Create · Experiment ${index + 1}`
+        const label = `Create · ${pairingName(pairings[index])}`
         const prefix = `Exp ${index + 1}`
         try {
           const res = await fetch(`${API_BASE}/api/create-experiment`, {
@@ -650,19 +653,13 @@ export default function SimulationPage() {
 
   // The file carries every pick's current body, so it rebuilds the same
   // experiment on any account.
-  async function downloadSimulation() {
+  async function getSimulationYaml() {
     const data = await syncDefinitions()
     const missing = data ? missingDefinitions(data) : []
     if (missing.length > 0) {
       setNotice(`Downloaded without ${describeRefs(missing)}: not in your library and not embedded, so whoever imports this file cannot run those experiments.`)
     }
-    const text = data ? yaml.dump(data) : simulationData ?? ''
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/yaml' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'simulation.yaml'
-    a.click()
-    URL.revokeObjectURL(url)
+    return data ? yaml.dump(data) : simulationData ?? ''
   }
 
   function loadSimulationFile(file: File) {
@@ -878,42 +875,14 @@ export default function SimulationPage() {
 
       {/* Right column — export & actions */}
       <div className="lg:flex-1 lg:overflow-y-auto p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
-        {/* YAML preview */}
-        <div className="space-y-1">
-          <div className="border-b border-neutral-800 pb-3 mb-3">
-            <h2 className="text-lg font-semibold tracking-tight">Export Simulation</h2>
-          </div>
-          <div className="space-y-2 gap-2">
-            <button
-              onClick={downloadSimulation}
-              className="w-full flex items-center justify-center gap-2 text-md px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-150 cursor-pointer"
-            >
-              Download Simulation .yaml File
-            </button>
-            <label className="w-full flex items-center justify-center gap-2 text-md px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600 transition-all duration-150 cursor-pointer">
-              Upload Simulation .yaml File
-              <input
-                type="file"
-                accept=".yaml,.yml"
-                className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) loadSimulationFile(f); e.target.value = '' }}
-              />
-            </label>
-          </div>
-          <button
-            onClick={() => setShowAsYaml(v => !v)}
-            className="cursor-pointer text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
-          >
-            {showAsYaml ? '▾ Hide YAML' : '▸ Show YAML'}
-          </button>
-          {showAsYaml && (
-            <textarea
-              disabled
-              value={(() => { try { return yaml.dump(JSON.parse(simulationData ?? '')) } catch { return simulationData ?? '' } })()}
-              className="w-full h-96 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 resize-y font-mono"
-            />
-          )}
-        </div>
+        <YamlIOSection
+          label="Simulation"
+          filename="simulation.yaml"
+          data={simulationData}
+          setData={setSimulationData}
+          getDownloadText={getSimulationYaml}
+          onUploadFile={loadSimulationFile}
+        />
 
         {/* Simulation testing */}
         <div className="space-y-3">
@@ -962,14 +931,14 @@ export default function SimulationPage() {
                   onChange={e => updateRun(i, { experiment: e.target.value })}
                   className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-300 hover:border-neutral-500 transition-colors cursor-pointer"
                 >
-                  <option value="" disabled>Experiment #</option>
-                  {pairings.map((pairing, p) => {
+                  <option value="" disabled>Select experiment…</option>
+                  {pairings.map(pairing => {
                     // Listed but unselectable, so it is clear why a human
                     // experiment is missing rather than it simply being absent.
                     const hasHuman = summarizePairing(pairing).humanCount > 0
                     return (
                       <option key={pairing.id} value={pairing.id} disabled={hasHuman}>
-                        Experiment {p + 1}{hasHuman ? ' (has a human seat — use Create)' : ''}
+                        {pairingName(pairing)}{hasHuman ? ' (includes a Human Participant — use Create)' : ''}
                       </option>
                     )
                   })}
@@ -1003,9 +972,9 @@ export default function SimulationPage() {
               title={pairings.length === 0
                 ? 'Add an experiment under Pairings first'
                 : simulatableCount === 0
-                  ? 'Every experiment seats a human — use Create to get their join links'
+                  ? 'Every experiment includes a Human Participant, so none can be simulated. Use Create to get join links for them.'
                   : runs.length >= simulatableCount
-                    ? `You can add at most ${simulatableCount} row${simulatableCount === 1 ? '' : 's'} — one per experiment without a human seat`
+                    ? `You can add at most ${simulatableCount} row${simulatableCount === 1 ? '' : 's'} — one per experiment without a Human Participant`
                     : undefined}
               className="w-full py-2 rounded-lg border border-dashed border-neutral-700 bg-neutral-900 text-sm text-neutral-400 hover:border-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-neutral-700 disabled:hover:text-neutral-400"
             >

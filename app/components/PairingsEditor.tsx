@@ -104,6 +104,25 @@ export function summarizePairing(pairing: Pairing) {
   }
 }
 
+/**
+ * A pairing named by what it uses, e.g. "Moderator · Alice (Helper) · Human".
+ * Assistants follow the participant they back; an empty pairing is "Empty".
+ */
+export function describePairing(
+  pairing: Pairing,
+  options: { agents?: MemberOption[]; mediators?: MemberOption[]; assistants?: MemberOption[] },
+) {
+  const labels = new Map([...(options.agents ?? []), ...(options.mediators ?? [])].map(o => [o.value, o.label]))
+  const assistantLabels = new Map((options.assistants ?? []).map(o => [o.value, o.label]))
+  const parts = normalizeMembers(pairing.members)
+    .filter(m => m.participant && m.participant !== 'no_mediator')
+    .map(m => {
+      const name = m.participant === HUMAN_MEMBER ? 'Human' : labels.get(m.participant) ?? memberLabel(m.participant)
+      return m.assistant ? `${name} (${assistantLabels.get(m.assistant) ?? m.assistant})` : name
+    })
+  return parts.length > 0 ? parts.join(' · ') : 'Empty'
+}
+
 function ordinal(n: number) {
   const rem100 = n % 100
   if (rem100 >= 11 && rem100 <= 13) return `${n}th`
