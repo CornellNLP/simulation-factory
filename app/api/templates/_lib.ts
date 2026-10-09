@@ -27,7 +27,7 @@ export const DUPLICATE_NAME_ERROR = 'duplicate_name'
 // Agents and assistants are referenced by id from simulation YAML, so their ids
 // are readable: the document id is a slug of the name, fixed at creation (a
 // rename keeps it, so saved simulations keep resolving), and the template's own
-// persona.id mirrors it. Mediators and simulations keep auto ids.
+// persona.id mirrors it. Public Assistants and simulations keep auto ids.
 const SLUG_ID_COLLECTIONS: readonly TemplateCollection[] = ['agents', 'assistants', 'assistants-reddit', 'assistants-simulation']
 
 export function usesSlugIds(collection: TemplateCollection) {

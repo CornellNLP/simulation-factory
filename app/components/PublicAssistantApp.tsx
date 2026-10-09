@@ -9,11 +9,10 @@ import * as yaml from 'js-yaml'
 import { TOPICS } from '../lib/topics'
 import { ApiKeyType, API_KEY_TYPE_LABELS, REASONING_LEVEL_OPTIONS } from '../lib/types'
 import { StructuredPromptEditor, PromptItemType, type PromptItem, type TextPromptItem } from '../components/StructuredPromptEditor'
-import { MediatorSection } from '../components/MediatorSection'
+import { ConfigSection } from '../components/ConfigSection'
 import { Nav } from './Nav'
-import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
+import { type ActionState } from '../components/ExperimentActions'
 import { SaveSection } from './SaveSection'
-import { YamlIOSection } from './YamlIOSection'
 import { create } from 'domain'
 import { StructuredOutputSchema, type StructuredOutputConfig } from '../components/StructuredOutputSchema'
 import { startTour } from '../lib/tour'
@@ -53,7 +52,7 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
   simulationBlocks?: Block[]
   usingDefaultBlocks?: boolean
   // Leaves out Debate Topic, Debate Statement, Target Position and Participant
-  // Initial Positions, and lists Participant Profiles instead (/mediator).
+  // Initial Positions, and lists Participant Profiles instead (/public-assistant).
   hideDebateItems?: boolean
 }) {
   const legend = (bg: string, label: string, dim = false) => (
@@ -61,7 +60,7 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
   )
   return (
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-sm text-neutral-500 space-y-1.5">
-      <p className="font-medium text-neutral-400">To construct your prompt, you can mix and match the following types of prompt blocks. You can edit the free-form text directly, while the other blocks will be automatically replaced with the corresponding conversation information when the mediator runs.<br /><br /></p>
+      <p className="font-medium text-neutral-400">To construct your prompt, you can mix and match the following types of prompt blocks. You can edit the free-form text directly, while the other blocks will be automatically replaced with the corresponding conversation information when the public assistant runs.<br /><br /></p>
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-baseline">
         <span className="font-medium text-neutral-300">Freeform Text</span>
         <span>{textOnly ? 'instructions for gathering information about the topic, participants, or anything else before each discussion' : 'custom instructions you write directly'}</span>
@@ -82,7 +81,7 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
           {legend('bg-[#dce1fd]', 'Conversation Context')}
           <span>the discussion up to this moment</span>
           {/* {legend('bg-[#f9d8f5]', 'Profile Info')}
-          <span>the mediator's profile data</span> */}
+          <span>the public assistant's profile data</span> */}
           {legend('bg-[#d8f9e0]', 'Initialization Result')}
           <span>the output of the initialization prompt</span>
         </>}
@@ -127,16 +126,15 @@ const SUBMISSION_FORMS = {
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
 
-export default function MediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
+export default function PublicAssistantApp({ variant, home = '/' }: { variant: string; home?: string }) {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [simQuota, setSimQuota] = useState<{ used: number; limit: number; simMaxWaitTimeMs: number } | null>(null)
 
-  const [showTutorial, setShowTutorial] = useState(false)
   const [dirty, setDirty] = useState(false)
 
-  // The main Mediator Toolkit is not debate-specific, so it drops the debate
+  // The main Public Assistant Toolkit is not debate-specific, so it drops the debate
   // items from its editors and legend and starts from a template without them.
   // The in-class variant still runs debate topic sets and keeps them.
   const hideDebateItems = variant === 'default'
@@ -171,7 +169,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     })
   }, [router, home])
 
-  const [mediatorData, setMediatorData] = useState<string | null>(null)
+  const [publicAssistantData, setPublicAssistantData] = useState<string | null>(null)
   const [topicId, setTopicId] = useState<number>(Number(Object.keys(TOPICS)[0]))
 
   const getDefaultContent = useCallback(async () => {
@@ -191,13 +189,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
-
-  useEffect(() => {
-    if (authReady && !localStorage.getItem('tourLoaded')) {
-      localStorage.setItem('tourLoaded', '1')
-      startTour()
-    }
-  }, [authReady])
 
   const [experimentId, setExperimentId] = useState<string | null>('')
   const [exportState, setExportState] = useState<ActionState>(idle)
@@ -231,13 +222,13 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
   const busy = creating !== null || exportState.status === 'loading' || simState.status === 'loading'
 
-  const mediatorParsed = useMemo(() => {
-    try { return JSON.parse(mediatorData ?? '') } catch { return null }
-  }, [mediatorData])
+  const publicAssistantParsed = useMemo(() => {
+    try { return JSON.parse(publicAssistantData ?? '') } catch { return null }
+  }, [publicAssistantData])
 
   const updateShouldRespondPrompt = (prompt: PromptItem[]) => {
     const reindexed = prompt.map((item, i) => ({ ...item, id: i }))
-    setMediatorData(prev => {
+    setPublicAssistantData(prev => {
       try {
         const data = JSON.parse(prev ?? '')
         data.should_respond_prompt = reindexed
@@ -248,7 +239,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
   const updateInitializationContextPrompt = (prompt: PromptItem[]) => {
     const reindexed = prompt.map((item, i) => ({ ...item, id: i }))
-    setMediatorData(prev => {
+    setPublicAssistantData(prev => {
       try {
         const data = JSON.parse(prev ?? '')
         data.initialization_context_prompt = reindexed
@@ -258,7 +249,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   }
 
   const structuredOutputConfig: StructuredOutputConfig = useMemo(() => {
-    const structuredOutput = mediatorParsed?.structured_output
+    const structuredOutput = publicAssistantParsed?.structured_output
     const properties = Object.entries(structuredOutput?.schema ?? {}).map(([name, field]: [string, any]) => ({
       name,
       schema: { type: field.type, description: field.description },
@@ -272,14 +263,14 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
       explanationField: structuredOutput?.explanation_field ?? '',
       descriptionOnly: true,
     }
-  }, [mediatorParsed?.structured_output])
+  }, [publicAssistantParsed?.structured_output])
 
   const updateStructuredOutputConfig = (config: StructuredOutputConfig) => {
     const schema: Record<string, { type: string; description: string }> = {}
     for (const p of config.schema?.properties ?? []) {
       schema[p.name] = { type: p.schema.type, description: p.schema.description }
     }
-    setMediatorData(prev => {
+    setPublicAssistantData(prev => {
       try {
         const data = JSON.parse(prev ?? '')
         data.structured_output = {
@@ -293,9 +284,9 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     })
   }
 
-  const updateMediatorPrompt = (prompt: PromptItem[]) => {
+  const updatePublicAssistantPrompt = (prompt: PromptItem[]) => {
     const reindexed = prompt.map((item, i) => ({ ...item, id: i }))
-    setMediatorData(prev => {
+    setPublicAssistantData(prev => {
       try {
         const data = JSON.parse(prev ?? '')
         data.prompt = reindexed
@@ -304,8 +295,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     })
   }
 
-  const updateMediatorField = (path: string[], value: string | boolean | number) => {
-    setMediatorData(prev => {
+  const updatePublicAssistantField = (path: string[], value: string | boolean | number) => {
+    setPublicAssistantData(prev => {
       try {
         const data = JSON.parse(prev ?? '')
         let obj = data
@@ -365,7 +356,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
       const res = await fetch(`${API_BASE}/api/create-experiment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediatorTemplate: mediatorData, mode, variant, numCohorts, numUtterances, action, idToken }),
+        body: JSON.stringify({ publicAssistantTemplate: publicAssistantData, mode, variant, numCohorts, numUtterances, action, idToken }),
       })
       const data = await res.json()
       setCreateState({ status: res.ok ? 'done' : 'error', result: data })
@@ -487,8 +478,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Mediator Toolkit</h1>
-              <p className="text-base text-neutral-500 mt-1">Create, audit, and test custom mediators.</p>
+              <h1 className="text-3xl font-semibold tracking-tight">Public Assistant Toolkit</h1>
+              <p className="text-base text-neutral-500 mt-1">Create, audit, and test custom public assistants.</p>
             </div>
 
             <div className="flex items-center gap-3 mt-1">
@@ -510,37 +501,11 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
           {variant === 'default' && <Nav />}
 
-          {/* tutorial video banner */}
-          <div className="rounded-md border border-blue-400/50 bg-blue-500/10 overflow-hidden text-sm text-blue-200">
-            <button
-              onClick={() => setShowTutorial(v => !v)}
-              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-blue-500/20 hover:text-blue-100 transition-colors cursor-pointer"
-            >
-              <span className="font-medium underline underline-offset-2">Watch the Tutorial Video!</span>
-              <svg
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className={`w-4 h-4 shrink-0 transition-transform ${showTutorial ? 'rotate-180' : ''}`}
-              >
-                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-              </svg>
-            </button>
-            {showTutorial && (
-              <div className="aspect-video border-t border-blue-400/30">
-                <iframe
-                  src="https://drive.google.com/file/d/1ELPMxibpd6Fm9m254UIjp1HoSAnNpJHD/preview"
-                  className="w-full h-full"
-                  allow="autoplay; fullscreen"
-                />
-              </div>
-            )}
-          </div>
-
           {/* Save / Load */}
           <SaveSection
             collection="mediators"
-            content={mediatorData}
-            onContentChange={setMediatorData}
+            content={publicAssistantData}
+            onContentChange={setPublicAssistantData}
             getDefaultContent={getDefaultContent}
             onDirtyChange={setDirty}
             enabled={authReady}
@@ -563,14 +528,14 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             </select>
           </div> */}
 
-          {/* Mediator configuration and prompt editors */}
+          {/* Public Assistant configuration and prompt editors */}
           <div className="space-y-4">
 
             <div id="tour-prompt-editors" className="space-y-4">
               <div className="border-b border-neutral-800 pb-3">
                 <h2 className="text-lg font-semibold tracking-tight">Prompt Editors</h2>
               </div>
-              <p className="text-sm text-neutral-500">Here you can edit the prompts to guide the mediator's interventions. The <span className="text-neutral-400">Intervention Prompt</span> controls what the mediator says; the <span className="text-neutral-400">Should Intervene</span> prompts the LLM to return true/false on whether it should intervene. The <span className="text-neutral-400">Initialization Prompt</span> instructs the LLM to gather information that can be used in discussions. Take a look at our <WorkedExamplesLink /> to see how these work. <a href="https://www.promptingguide.ai/" target="_blank" className="underline hover:text-neutral-300">Learn more about prompt engineering.</a></p>
+              <p className="text-sm text-neutral-500">Here you can edit the prompts to guide the public assistant's interventions. The <span className="text-neutral-400">Intervention Prompt</span> controls what the public assistant says; the <span className="text-neutral-400">Should Intervene</span> prompts the LLM to return true/false on whether it should intervene. The <span className="text-neutral-400">Initialization Prompt</span> instructs the LLM to gather information that can be used in discussions. Take a look at our <WorkedExamplesLink /> to see how these work. <a href="https://www.promptingguide.ai/" target="_blank" className="underline hover:text-neutral-300">Learn more about prompt engineering.</a></p>
             </div>
 
             {variant === 'default' && (
@@ -598,21 +563,21 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               <div className="p-4">
                 {activePromptTab === 'response' ? (
                   <div className="space-y-4">
-                    <PromptEditorDescription description="A prompt that determines your mediator's interventions during the discussion.  The mediator uses this prompt to generate a message that is sent to participants.  It does so every time the Should Intervene Prompt decides the mediator should intervene." />
+                    <PromptEditorDescription description="A prompt that determines your public assistant's interventions during the discussion.  The public assistant uses this prompt to generate a message that is sent to participants.  It does so every time the Should Intervene Prompt decides the public assistant should intervene." />
                     <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
-                    {/* <MediatorSection
+                    {/* <ConfigSection
                       title="Response Settings"
-                      mediatorParsed={mediatorParsed}
-                      onUpdate={updateMediatorField}
+                      parsed={publicAssistantParsed}
+                      onUpdate={updatePublicAssistantField}
                       fields={[
                         { label: 'Context', description: "When the \"Context\" block is included in the prompt editor, it determines what experiment information is injected into the prompt. 'Current' includes only the active group chat; 'All' also includes participant responses from prior stages (e.g. pre-survey).", path: ['context'], type: 'select', options: [{ value: 'all', label: 'All' }, { value: 'current', label: 'Current' }] },
                       ]}
                     /> */}
                     <StructuredPromptEditor
                       label="Intervention Prompt Editor"
-                      prompt={(mediatorParsed?.prompt as PromptItem[]) ?? []}
+                      prompt={(publicAssistantParsed?.prompt as PromptItem[]) ?? []}
                       stageId=""
-                      onUpdate={updateMediatorPrompt}
+                      onUpdate={updatePublicAssistantPrompt}
                       blocks={blocks}
                       blocksLoaded={blocksLoaded}
                       hideDebateItems={hideDebateItems}
@@ -625,19 +590,19 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   </div>
                 ) : activePromptTab === 'should-respond' ? (
                   <div className="space-y-4">
-                    <PromptEditorDescription description="Your mediator uses this prompt after each message in the discussion to decide whether this is a good time to intervene.  When the response is true, the mediator uses the Intervention Prompt to generate a message and sends it to the participants. When the response is false the mediator waits for the next participant message. Message sent automatically when the conversation begins." />
+                    <PromptEditorDescription description="Your public assistant uses this prompt after each message in the discussion to decide whether this is a good time to intervene.  When the response is true, the public assistant uses the Intervention Prompt to generate a message and sends it to the participants. When the response is false the public assistant waits for the next participant message. Message sent automatically when the conversation begins." />
                     <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
-                    {/* <MediatorSection
+                    {/* <ConfigSection
                       title="ShouldRespond Settings"
-                      mediatorParsed={mediatorParsed}
-                      onUpdate={updateMediatorField}
+                      parsed={publicAssistantParsed}
+                      onUpdate={updatePublicAssistantField}
                       fields={[
                         { label: 'Context', description: "When the \"Context\" block is included in the prompt editor, it determines what experiment information is injected into the prompt. 'Current' includes only the active group chat; 'All' also includes participant responses from prior stages (e.g. pre-survey).", path: ['should_respond_context'], type: 'select', options: [{ value: 'all', label: 'All' }, { value: 'current', label: 'Current' }] },
                       ]}
                     /> */}
                     <StructuredPromptEditor
                       label="Should Intervene Prompt Editor"
-                      prompt={(mediatorParsed?.should_respond_prompt as PromptItem[]) ?? []}
+                      prompt={(publicAssistantParsed?.should_respond_prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
                       blocks={blocks}
@@ -649,11 +614,11 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   </div>
                 ) : activePromptTab === 'initialization' ? (
                   <div className="space-y-4">
-                        <PromptEditorDescription description="A prompt that is run at the start of the conversation to gather information about the topic, participants, or anything else. This is information that can subsequently be accessed by your mediator during the conversation. (via the Initialization Result variable)." />
+                        <PromptEditorDescription description="A prompt that is run at the start of the conversation to gather information about the topic, participants, or anything else. This is information that can subsequently be accessed by your public assistant during the conversation. (via the Initialization Result variable)." />
                     <PromptBlockLegend textOnly simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
                     <StructuredPromptEditor
                       label="Initialization Prompt Editor"
-                      prompt={(mediatorParsed?.initialization_context_prompt ?? mediatorParsed?.preload_context_prompt) as PromptItem[] ?? []}
+                      prompt={(publicAssistantParsed?.initialization_context_prompt ?? publicAssistantParsed?.preload_context_prompt) as PromptItem[] ?? []}
                       stageId=""
                       onUpdate={updateInitializationContextPrompt}
                       blocks={blocks}
@@ -668,17 +633,17 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             </div>
             
             <div className="border-b border-neutral-800 pb-3">
-              <h2 className="text-lg font-semibold tracking-tight">Mediator Configuration</h2>
+              <h2 className="text-lg font-semibold tracking-tight">Public Assistant Configuration</h2>
             </div>
 
             <div id="tour-chat-settings">
-              <MediatorSection
-                title="Mediator Parameters"
-                mediatorParsed={mediatorParsed}
-                onUpdate={updateMediatorField}
+              <ConfigSection
+                title="Public Assistant Parameters"
+                parsed={publicAssistantParsed}
+                onUpdate={updatePublicAssistantField}
                 fields={[
-                  { label: 'Typing Speed (Words Per Minute)', description: "Mediator typing speed. Set to zero for instant messages.", path: ['chat_settings', 'words_per_minute'], type: 'number', min: 0, max: 2000, step: 1 },
-                  { label: 'Min User Messages Before Responding', description: "After the mediator has sent its first message, this many participant messages must be sent before the mediator is allowed to respond again.", path: ['min_participant_messages_before_responding'], type: 'number', min: 0, max: 20, step: 1 },
+                  { label: 'Typing Speed (Words Per Minute)', description: "Public Assistant typing speed. Set to zero for instant messages.", path: ['chat_settings', 'words_per_minute'], type: 'number', min: 0, max: 2000, step: 1 },
+                  { label: 'Min User Messages Before Responding', description: "After the public assistant has sent its first message, this many participant messages must be sent before the public assistant is allowed to respond again.", path: ['min_participant_messages_before_responding'], type: 'number', min: 0, max: 20, step: 1 },
                   { label: 'Temperature', description: "Control the randomness of the model. 0 = deterministic, 1 = unpredictable.", path: ['generation', 'temperature'], type: 'number', min: 0, max: 2, step: 0.1 },
                   { label: 'Initial Message', description: "Message sent automatically when the conversation begins.", path: ['chat_settings', 'initial_message'], type: 'text', placeholder: "Hello! I'm here to help with..." },
                 ]}
@@ -688,164 +653,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
           </div>
 
         </div>
-      </div>
-
-      {/* Right column — preview & actions */}
-      <div className="lg:flex-1 lg:overflow-y-auto p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
-        {/* YAML preview */}
-        <YamlIOSection
-          label="Mediator"
-          filename="mediator.yaml"
-          data={mediatorData}
-          setData={setMediatorData}
-          downloadId="tour-template-download"
-          uploadId="tour-template-upload"
-        />
-
-        {/* Actions: create buttons, then experiment id + export */}
-        <div className="space-y-3">
-          <div className="space-y-3" id="tour-create">
-            <div className="border-b border-neutral-800 pb-3 mb-3">
-              <h2 className="text-lg font-semibold tracking-tight">Mediator Testing</h2>
-            </div>
-            {/* create buttons on one row */}
-            <div className="space-y-3">
-              <ActionButton
-                label="Create (human-agent)"
-                loadingLabel="Creating…"
-                loading={creating === 'human-agent'}
-                disabled={busy}
-                onClick={() => handleCreate('human-agent')}
-              />
-              <ActionButton
-                label="Create (human-human)"
-                loadingLabel="Creating…"
-                loading={creating === 'human-human'}
-                disabled={busy}
-                onClick={() => handleCreate('human-human')}
-              />
-              <ActionButton
-                label="Create (agent-agent)"
-                loadingLabel="Creating…"
-                loading={creating === 'agent-agent' && createAction === 'create'}
-                disabled={busy}
-                onClick={() => handleCreate('agent-agent', 'create')}
-              />
-            </div>
-          </div>
-
-          {/* Action results */}
-          {createState.result !== null && (
-            <ResultBox
-              title="Create"
-              state={createState}
-              links={
-                createState.status === 'done' && typeof createState.result === 'object' && createState.result !== null
-                  ? createState.result
-                  : undefined
-              }
-            />
-          )}
-
-          <div className="space-y-3" id="tour-simulate">
-            <div className="border-b border-neutral-800 pb-3 mb-3 mt-6 flex items-center justify-between">
-              <h2 className="text-lg font-semibold tracking-tight">Mediator Simulation</h2>
-            </div>
-            {simQuota && (
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${simQuota.used >= simQuota.limit ? 'bg-red-500' : 'bg-neutral-500'}`}
-                    style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
-                  />
-                </div>
-                <span className={`text-xs tabular-nums ${simQuota.used >= simQuota.limit ? 'text-red-400' : 'text-neutral-500'}`}>
-                  {simQuota.used}/{simQuota.limit} today
-                </span>
-              </div>
-            )}
-            {/* agent-agent (simulation) on its own row, with cohort count */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div>
-                <input
-                  type="text"
-                  min={1}
-                  max={30}
-                  value={numCohorts}
-                  onChange={e => {
-                    const v = e.target.value
-                    if (v === '') return setNumCohorts('')
-                    const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) setNumCohorts(String(Math.min(30, Math.max(1, n))))
-                  }}
-                  disabled={busy}
-                  className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                /> <label className="text-sm text-neutral-400">Discussions (1-30)</label>
-              </div>
-              <div>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={numUtterances}
-                  onChange={e => {
-                    const v = e.target.value
-                    if (v === '') return setNumUtterances('')
-                    const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) setNumUtterances(String(Math.min(20, Math.max(1, n))))
-                  }}
-                  disabled={busy}
-                  className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                /> <label className="text-sm text-neutral-400">Messages (1-20)</label>
-              </div>
-              <div className="flex flex-col">
-                <label className="text-sm text-neutral-400">Max wait time: {(() => { const s = Math.round((simQuota?.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()} minutes</label>
-                {simStartTime !== null && (
-                  <label className="text-sm text-neutral-400">
-                    {simState.status === 'loading' ? 'Elapsed' : 'Completed in'}: {Math.floor(simElapsed / 60)}:{String(simElapsed % 60).padStart(2, '0')} minutes
-                  </label>
-                )}
-              </div>
-              <ActionButton
-                label="Simulate"
-                loadingLabel="Simulating…"
-                loading={(creating === 'agent-agent' && createAction === 'simulate') || simState.status === 'loading'}
-                disabled={busy || (simQuota !== null && simQuota.used >= simQuota.limit)}
-                onClick={handleCreateSim}
-              />
-            </div>
-          </div>
-        </div>
-
-        {simState.result !== null && (
-          <ResultBox title="Simulation" state={simState} showMessage />
-        )}
-
-        {simState.status === 'done' && simExport !== null && (
-          <div className="flex flex-wrap gap-3">
-            {/* <ActionButton
-              label="Download simulation export (JSON)"
-              loadingLabel="…"
-              loading={false}
-              onClick={() => downloadJson(simExport, `simulation-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.json`)}
-            /> */}
-            <ActionButton
-              label="Download ConvoKit corpus (zip)"
-              loadingLabel="Converting…"
-              loading={convokitLoading}
-              onClick={downloadConvokit}
-            />
-            <a
-              href="https://colab.research.google.com/drive/1Mw1DNmqr5XDCPnH9zXZDVY0cM_-HZnlr#scrollTo=sQZqO5iVkTlU"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full px-5 py-2.5 rounded-lg border border-neutral-700 bg-neutral-900 text-base font-medium text-neutral-200 hover:bg-neutral-800 hover:border-neutral-600 active:scale-[0.98] transition-all duration-150 text-center cursor-pointer"
-            >
-              Notebook to analyze the data
-            </a>
-          </div>
-        )}
-
       </div>
     </div>
   )

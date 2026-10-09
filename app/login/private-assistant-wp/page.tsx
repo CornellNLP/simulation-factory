@@ -20,7 +20,7 @@ export default function LandingPage() {
       if (!snap.exists()) {
         await setDoc(ref, { email, createdAt: new Date().toISOString() })
       }
-      router.push('/assistant-reddit')
+      router.push('/private-assistant-wp')
     } catch (e: any) {
       setError(e.message ?? 'Sign in failed')
     }
@@ -31,7 +31,7 @@ export default function LandingPage() {
       <main className="flex-1 flex flex-col items-center justify-center px-8 py-12 text-center space-y-8">
         <div>
           <h1 className="text-5xl font-semibold tracking-tight max-w-4xl leading-tight">
-            Assistant Toolkit - Reddit: Build and Test
+            Private Assistant Toolkit - WP: Build and Test
           </h1>
         </div>
 

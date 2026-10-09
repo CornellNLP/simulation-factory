@@ -1,4 +1,4 @@
-import { CMV_RULES } from '../../../assistant-reddit/topics'
+import { CMV_RULES } from '../../../private-assistant-reddit/topics'
 import { blockDescriptions } from '../utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────

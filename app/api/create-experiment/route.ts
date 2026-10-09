@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { generate, type Mode } from './generator'
-import { MEDIATOR_PRESET } from './config'
+import { PUBLIC_ASSISTANT_PRESET } from './config'
 import { adminAuth, adminDb } from '../../lib/firebaseAdmin'
 import { FieldValue } from 'firebase-admin/firestore'
 import { TOPIC_SETS } from '@/app/lib/topicSets'
@@ -37,13 +37,13 @@ async function checkAndIncrementQuota(email: string, cohorts: number): Promise<{
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
-  const { mediatorTemplate, simulationTemplate, assistantTemplate, assistantTemplates, agentTemplate, agentTemplates, mediator = 'template', numAgents, p1 = 'participant-1', p2 = 'participant-2', variant = 'default', mode, seats, numCohorts, numUtterances, action = 'create', idToken, postTitle, postDescription, experimentTemplateSet, agentAssignment, opParticipant, publicizeAssistantMessages, allowPublicMessageDeletion } = body as {
-    mediatorTemplate?: string
+  const { publicAssistantTemplate, simulationTemplate, assistantTemplate, assistantTemplates, agentTemplate, agentTemplates, publicAssistant = 'template', numAgents, p1 = 'participant-1', p2 = 'participant-2', variant = 'default', mode, seats, numCohorts, numUtterances, action = 'create', idToken, postTitle, postDescription, experimentTemplateSet, agentAssignment, opParticipant, publicizeAssistantMessages, allowPublicMessageDeletion } = body as {
+    publicAssistantTemplate?: string
     simulationTemplate?: string
     assistantTemplate?: string
     // One entry per *seat*, null where that seat runs unassisted. Takes
     // precedence over the single `assistantTemplate` + `agentAssignment` pair,
-    // which the assistant toolkits still send and which can only ever address
+    // which the private assistant toolkits still send and which can only ever address
     // p1 and p2.
     assistantTemplates?: (string | null)[]
     agentTemplate?: string
@@ -51,9 +51,9 @@ export async function POST(req: Request) {
     // not resolve. Takes precedence over the single `agentTemplate`, which the
     // agent toolkit still sends for its one-template-everywhere runs.
     agentTemplates?: (string | null)[]
-    // Which mediator to run with: the caller's own `mediatorTemplate`, the stock
+    // Which public assistant to run with: the caller's own `publicAssistantTemplate`, the stock
     // preset, or none at all.
-    mediator?: 'template' | 'preset' | 'none'
+    publicAssistant?: 'template' | 'preset' | 'none'
     numAgents?: string | number
     p1?: string
     p2?: string
@@ -87,15 +87,15 @@ export async function POST(req: Request) {
   const parsedAgents = parseInt(String(numAgents), 10)
   const agentCount = Number.isFinite(parsedAgents) && parsedAgents >= 2 ? parsedAgents : undefined
 
-  // Only the mediator toolkit sends mediatorTemplate — assistant-toolkit pages send
-  // assistantTemplate instead and never a mediator, so their experiments have none.
-  let mediatorContent: string | null
-  if (mediator === 'none') {
-    mediatorContent = null
-  } else if (mediator === 'preset') {
-    mediatorContent = fs.readFileSync(MEDIATOR_PRESET, 'utf8')
+  // Only the public assistant toolkit sends publicAssistantTemplate — private assistant toolkit pages send
+  // assistantTemplate instead and never a public assistant, so their experiments have none.
+  let publicAssistantContent: string | null
+  if (publicAssistant === 'none') {
+    publicAssistantContent = null
+  } else if (publicAssistant === 'preset') {
+    publicAssistantContent = fs.readFileSync(PUBLIC_ASSISTANT_PRESET, 'utf8')
   } else {
-    mediatorContent = mediatorTemplate ?? null
+    publicAssistantContent = publicAssistantTemplate ?? null
   }
 
   if (!mode || !MODES.includes(mode)) {
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generate(p1, p2, experimentTemplatePath, mediatorContent, mode, cohortCount, utteranceCount, action,
+    const result = await generate(p1, p2, experimentTemplatePath, publicAssistantContent, mode, cohortCount, utteranceCount, action,
       simulationTemplate, agentCount, assistantTemplate, postTitle, postDescription, agentAssignment, experimentTemplateSet, opParticipant,
       agentTemplates?.length ? agentTemplates : agentTemplate, seatList,
       assistantTemplates?.length ? assistantTemplates : undefined,

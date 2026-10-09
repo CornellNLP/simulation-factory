@@ -30,6 +30,15 @@ function _positiveNumber(value: unknown): number | undefined {
   return Number.isFinite(n) && n >= 1 ? n : undefined
 }
 
+// Matches MAX_UTTERANCE in the Simulation Toolkit, so an uploaded or hand-edited
+// template cannot ask for a longer chat than the UI allows.
+const MAX_UTTERANCE = 50
+
+function _maxUtterance(value: unknown): number | undefined {
+  const n = _positiveNumber(value)
+  return n == null ? undefined : Math.min(MAX_UTTERANCE, n)
+}
+
 function _boolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined
 }
@@ -56,7 +65,7 @@ export function parseSimulationTemplate(content: string): SimulationTemplate {
   return {
     description: String(tpl.description ?? ''),
     blocks: _blocks(tpl.blocks),
-    maxUtterance: _positiveNumber(tpl.max_utterance),
+    maxUtterance: _maxUtterance(tpl.max_utterance),
     maxTime: _positiveNumber(tpl.max_time),
     publicizeAssistantMessages: _boolean(tpl.publicize_assistant_messages),
     allowPublicMessageDeletion: _boolean(tpl.allow_public_message_deletion),
@@ -73,7 +82,7 @@ export function parseSimulationTemplate(content: string): SimulationTemplate {
  * leaving only the block list under `[Stage: ...]`.
  *
  * Each block contributes the one description drawn for this experiment, taken
- * from `choices` so the stage agrees with the mediator and agent prompts.
+ * from `choices` so the stage agrees with the public assistant and agent prompts.
  */
 export function applySimulationToChatStage(
   chatStage: Record<string, any>,

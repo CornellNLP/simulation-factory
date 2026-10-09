@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Assistant Toolkit - Reddit',
+  title: 'Private Assistant Toolkit - WP',
   description: "Develop a custom assistant"
 }
 

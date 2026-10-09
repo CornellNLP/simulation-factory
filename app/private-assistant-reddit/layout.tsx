@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Assistant Toolkit - Reddit',
+  title: 'Private Assistant Toolkit - Reddit',
   description: "Develop a custom assistant"
 }
 
-export default function AssistantLoginLayout({
+export default function AssistantLayout({
   children,
 }: Readonly<{
   children: React.ReactNode

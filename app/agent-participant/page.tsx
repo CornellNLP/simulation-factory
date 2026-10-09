@@ -10,7 +10,7 @@ import {
   type PromptItem,
 } from '../components/StructuredPromptEditor'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
-import { MediatorSection } from '../components/MediatorSection'
+import { ConfigSection } from '../components/ConfigSection'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { Nav } from '../components/Nav'
@@ -634,7 +634,7 @@ export default function AgentParticipantsPage() {
 
           <Nav />
 
-          {/* SAVE / LOAD — same system as the mediator toolkit */}
+          {/* SAVE / LOAD — same system as the public assistant toolkit */}
 
           <SaveSection
             collection="agents"
@@ -664,7 +664,7 @@ export default function AgentParticipantsPage() {
               error={simulationBlocksError}
             />
 
-            {/* PROMPT TYPE TABS — boxed container, matching the assistant toolkit */}
+            {/* PROMPT TYPE TABS — boxed container, matching the private assistant toolkit */}
 
             <div className="rounded-lg border border-neutral-800">
 
@@ -950,9 +950,9 @@ export default function AgentParticipantsPage() {
             <h2 className="text-lg font-semibold">Agent Configuration</h2>
           </div>
 
-          <MediatorSection
+          <ConfigSection
             title="Agent Persona"
-            mediatorParsed={agentParsed}
+            parsed={agentParsed}
             onUpdate={updateAgentField}
             fields={[
               { label: 'Name', description: 'Displayed name of the agent.', path: ['persona', 'name'], type: 'text' },
@@ -961,9 +961,9 @@ export default function AgentParticipantsPage() {
             ]}
           />
 
-          <MediatorSection
+          <ConfigSection
             title="Agent Parameters"
-            mediatorParsed={agentParsed}
+            parsed={agentParsed}
             onUpdate={updateAgentField}
             fields={[
               {

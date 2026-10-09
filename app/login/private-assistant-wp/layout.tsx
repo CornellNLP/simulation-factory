@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Assistant Toolkit',
+  title: 'Private Assistant Toolkit - WP',
   description: "Develop a custom assistant"
 }
 
-export default function AssistantLayout({
+export default function AssistantLoginLayout({
   children,
 }: Readonly<{
   children: React.ReactNode

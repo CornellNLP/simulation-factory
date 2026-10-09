@@ -8,12 +8,13 @@ import { API_BASE } from '../lib/config'
 import * as yaml from 'js-yaml'
 import { StructuredPromptEditor, type PromptItem } from '../components/StructuredPromptEditor'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
-import { MediatorSection } from '../components/MediatorSection'
-import { Nav } from '../components/Nav'
+import { ConfigSection } from '../components/ConfigSection'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
 import { useSimulationBlocks, type Block } from '../lib/blocks'
+import { ARTICLE_PAGES } from './topics'
+import { POLICIES, PolicyType, type Policy } from './retrieval'
 
 const idle: ActionState = { status: 'idle', result: null }
 
@@ -39,16 +40,14 @@ function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-baseline">
         <span className="font-medium text-neutral-300">Freeform Text</span>
         <span>custom instructions you write directly</span>
+        {legend('bg-[#fde8c8]', 'Article Page')}
+        <span>the Wikipedia article the talk page discusses</span>
         {legend('bg-[#dce1fd]', 'Conversation Context')}
         <span>the discussion up to this moment</span>
-        {legend('bg-[#dce1fd]', 'Profile Info')}
+        {legend('bg-[#dce1fd]', 'Participant Info')}
         <span>the assisted participant's profile info</span>
-        {legend('bg-[#dce1fd]', 'Current Draft')}
+        {legend('bg-[#dce1fd]', 'Participant Chat Input')}
         <span>the participant's current, unsent chat draft</span>
-        {legend('bg-[#dce1fd]', 'Previous Assistant Message')}
-        <span>the assistant's previous message to this participant, whether it chose to respond, and when</span>
-        {legend('bg-[#dce1fd]', 'Previous Draft')}
-        <span>the draft the assistant last responded to</span>
         {simulationBlocks.length === 0 ? (
           <>
             {legend('', 'Simulation Blocks', true)}
@@ -75,43 +74,30 @@ function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
 
-// What create-experiment reads as the simulation template, as the Simulation
-// Toolkit sends it: the saved simulation minus its embedded definitions, which
-// only matter to that toolkit's pairings. Null when there is nothing usable.
-function simulationYaml(content: string | null): string | null {
-  if (!content) return null
-  try {
-    const data = JSON.parse(content)
-    delete data.definitions
-    return yaml.dump(data)
-  } catch {
-    return null
-  }
-}
-
-// The selected simulation's experiment-wide chat settings, shown read-only:
-// they are edited, saved and sent with the simulation.
-const CHAT_SETTINGS: { key: string; label: string }[] = [
-  { key: 'publicize_assistant_messages', label: 'Assistant replies shown to everyone' },
-  { key: 'allow_public_message_deletion', label: 'Participants can delete any message' },
-]
-
 export default function AssistantPage() {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [simQuota, setSimQuota] = useState<{ used: number; limit: number; simMaxWaitTimeMs: number } | null>(null)
 
-  // The selected simulation is the conversation the assistant is tested in: its
-  // description and blocks supply the topic, in place of a hardcoded one.
-  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError, simulationContent } = useSimulationBlocks()
+  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
 
   const [assistantData, setAssistantData] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
-  const selectedSimulation = useMemo(() => {
-    try { return JSON.parse(simulationContent ?? '') as Record<string, unknown> } catch { return null }
-  }, [simulationContent])
-  const selectedSimulationName = simulations.find(s => s.id === selectedId)?.name
+  const [selectedArticleIndex, setSelectedArticleIndex] = useState<number | null>(0)
+  const [customTitle, setCustomTitle] = useState('')
+  const [customArticle, setCustomArticle] = useState<{ title: string; body: string; link: string } | null>(null)
+  const [customArticleLoading, setCustomArticleLoading] = useState(false)
+  const [customArticleError, setCustomArticleError] = useState<string | null>(null)
+  const [useCustomArticle, setUseCustomArticle] = useState(false)
+  const [expandedPolicyTypes, setExpandedPolicyTypes] = useState<Set<PolicyType>>(new Set())
+  const policiesByType = useMemo(() => {
+    const grouped = {} as Record<PolicyType, Policy[]>
+    for (const policy of POLICIES) {
+      (grouped[policy.type] ??= []).push(policy)
+    }
+    return grouped
+  }, [])
   const [p1HasAssistant, setP1HasAssistant] = useState(true)
   const [p2HasAssistant, setP2HasAssistant] = useState(false)
   const agentAssignment = p1HasAssistant && p2HasAssistant
@@ -138,7 +124,7 @@ export default function AssistantPage() {
   const getDefaultContent = useCallback(async () => {
     // persona.id is left as the file has it: saving sets it to the saved
     // assistant's id.
-    const defaultsText = await fetch(`${API_BASE}/templates/simulation/assistant.yaml`).then(res => res.text())
+    const defaultsText = await fetch(`${API_BASE}/templates/wikipedia/assistant.yaml`).then(res => res.text())
     return JSON.stringify(yaml.load(defaultsText), null, 2)
   }, [])
 
@@ -196,6 +182,26 @@ export default function AssistantPage() {
   const assistantParsed = useMemo(() => {
     try { return JSON.parse(assistantData ?? '') } catch { return null }
   }, [assistantData])
+
+  const selectedPolicyNames = useMemo(() => {
+    const retrieval = (assistantParsed?.retrieval ?? []) as { name: string }[]
+    return new Set(retrieval.map(r => r.name))
+  }, [assistantParsed])
+
+  const toggleRetrievalPolicy = (policy: Policy) => {
+    setAssistantData(prev => {
+      try {
+        const data = JSON.parse(prev ?? '')
+        const current: { id: number; name: string; type: PolicyType }[] = data.retrieval ?? []
+        const exists = current.some(r => r.name === policy.name)
+        const next = exists
+          ? current.filter(r => r.name !== policy.name)
+          : [...current, { id: current.length, name: policy.name, type: policy.type }]
+        data.retrieval = next.map((r, i) => ({ ...r, id: i }))
+        return JSON.stringify(data, null, 2)
+      } catch { return prev }
+    })
+  }
 
   const updateAssistantPrompt = (prompt: PromptItem[]) => {
     const reindexed = prompt.map((item, i) => ({ ...item, id: i }))
@@ -260,13 +266,28 @@ export default function AssistantPage() {
     }
   }
 
+  async function handleAddCustomArticle() {
+    const title = customTitle.trim()
+    if (!title) return
+    setCustomArticleLoading(true)
+    setCustomArticleError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/wikipedia-article?title=${encodeURIComponent(title)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch article')
+      setCustomArticle(data)
+      setUseCustomArticle(true)
+      setSelectedArticleIndex(null)
+    } catch (e) {
+      setCustomArticleError(e instanceof Error ? e.message : String(e))
+      setCustomArticle(null)
+    } finally {
+      setCustomArticleLoading(false)
+    }
+  }
+
   async function handleCreate(mode: 'human-human' | 'human-agent' | 'agent-agent', action: 'create' | 'simulate' = 'create') {
     setSimState(idle)
-    const simulationTemplate = simulationYaml(simulationContent)
-    if (!simulationTemplate) {
-      setCreateState({ status: 'error', result: { error: 'Save a simulation in the Simulation Toolkit and select it above first — it supplies the conversation topic.' } })
-      return null
-    }
     setCreating(mode)
     setCreateAction(action)
     try {
@@ -274,17 +295,15 @@ export default function AssistantPage() {
       if (action === 'simulate') {
         idToken = await auth.currentUser?.getIdToken()
       }
+      const selectedArticle = useCustomArticle ? (customArticle ?? undefined) : (selectedArticleIndex !== null ? ARTICLE_PAGES[selectedArticleIndex] : undefined)
       const res = await fetch(`${API_BASE}/api/create-experiment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          assistantTemplate: assistantData,
-          simulationTemplate,
-          mode,
-          numCohorts,
-          numUtterances,
-          action,
-          idToken,
+          assistantTemplate: assistantData, mode, numCohorts, numUtterances, action, idToken,
+          postTitle: selectedArticle?.title,
+          postDescription: selectedArticle?.body,
+          experimentTemplateSet: 'wikipedia',
           agentAssignment,
         }),
       })
@@ -389,16 +408,16 @@ export default function AssistantPage() {
   )
 
   return (
-    <div className="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden bg-neutral-950 text-neutral-100">
+    <div className="flex flex-col lg:flex-row bg-neutral-950 text-neutral-100">
 
       {/* Left column — prompt editor */}
-      <div className="lg:flex-3 lg:overflow-y-auto p-8">
+      <div className="lg:flex-3 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:min-h-0 p-8">
         <div className="w-full space-y-5">
 
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Assistant Toolkit</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">Private Assistant Toolkit - Wikipedia</h1>
               <p className="text-base text-neutral-500 mt-1">Create and test custom private discussion assistants.</p>
             </div>
 
@@ -416,11 +435,9 @@ export default function AssistantPage() {
             </div>
           </div>
 
-          <Nav />
-
           {/* Save / Load */}
           <SaveSection
-            collection="assistants-simulation"
+            collection="assistants"
             content={assistantData}
             onContentChange={setAssistantData}
             getDefaultContent={getDefaultContent}
@@ -464,21 +481,21 @@ export default function AssistantPage() {
                       prompt={(assistantParsed?.prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateAssistantPrompt}
-                      assistantMode="simulation"
+                      assistantMode="wp"
                       blocks={blocks}
                       blocksLoaded={blocksLoaded}
                     />
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <PromptEditorDescription description="Your assistant uses this prompt after each update to the participant's draft or the conversation to decide whether this is a good time to offer guidance. When the response is true, the assistant uses the Assistant Prompt to generate a message; when false, it displays 'Nothing further to add at this point in the conversation.'" />
+                    <PromptEditorDescription description="Your assistant uses this prompt after each update to the participant's draft or the conversation to decide whether this is a good time to offer guidance. When the response is true, the assistant uses the Assistant Prompt to generate a message; when false, it waits." />
                     <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                     <StructuredPromptEditor
                       label="Should Intervene Prompt Editor"
                       prompt={(assistantParsed?.should_respond_prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
-                      assistantMode="simulation"
+                      assistantMode="wp"
                       blocks={blocks}
                       blocksLoaded={blocksLoaded}
                     />
@@ -487,14 +504,77 @@ export default function AssistantPage() {
               </div>
             </div>
           </div>
+          <div className="space-y-3">
+            <div className="border-b border-neutral-800 pb-3 mb-3">
+              <h2 className="text-lg font-semibold tracking-tight">Retrieval Information</h2>
+            </div>
+            <div className="space-y-2">
+              {(Object.keys(policiesByType) as PolicyType[]).map(type => {
+                const policies = policiesByType[type]
+                const isOpen = expandedPolicyTypes.has(type)
+                return (
+                  <div key={type} className="space-y-2">
+                    <button
+                      onClick={() => setExpandedPolicyTypes(prev => {
+                        const next = new Set(prev)
+                        if (next.has(type)) next.delete(type); else next.add(type)
+                        return next
+                      })}
+                      className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600 transition-colors cursor-pointer"
+                    >
+                      <span>{type.charAt(0) + type.slice(1).toLowerCase()} ({policies.length})</span>
+                      <span className="text-neutral-500">{isOpen ? '▾' : '▸'}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="space-y-0.5 pl-3">
+                        {policies.map(policy => {
+                          const checked = selectedPolicyNames.has(policy.name)
+                          return (
+                            <label
+                              key={policy.name}
+                              className={`flex items-center gap-2 py-1 text-sm cursor-pointer transition-colors ${checked
+                                  ? 'text-neutral-100'
+                                  : 'text-neutral-400 hover:text-neutral-200'
+                                }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleRetrievalPolicy(policy)}
+                                className="sr-only"
+                              />
+                              <span
+                                aria-hidden
+                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${checked
+                                    ? 'border-neutral-300 bg-neutral-100'
+                                    : 'border-neutral-600 bg-transparent'
+                                  }`}
+                              >
+                                {checked && (
+                                  <svg viewBox="0 0 16 16" className="w-3 h-3 text-neutral-950" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M3 8l3.5 3.5L13 5" />
+                                  </svg>
+                                )}
+                              </span>
+                              {policy.name}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
           <div className="border-b border-neutral-800 pb-3">
             <h2 className="text-lg font-semibold tracking-tight">Assistant Configuration</h2>
           </div>
 
-          <MediatorSection
+          <ConfigSection
             title="Assistant Persona"
-            mediatorParsed={assistantParsed}
+            parsed={assistantParsed}
             onUpdate={updateAssistantField}
             fields={[
               { label: 'Name', description: 'Displayed name of the assistant.', path: ['persona', 'name'], type: 'text' },
@@ -506,32 +586,12 @@ export default function AssistantPage() {
       </div>
 
       {/* Right column — testing & simulation */}
-      <div className="lg:flex-1 lg:overflow-y-auto p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
+      <div className="lg:flex-1 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:min-h-0 p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
         <YamlIOSection label="Assistant" filename="assistant.yaml" data={assistantData} setData={setAssistantData} />
-        <div className="space-y-3">
+        {/* <div className="space-y-3">
           <div className="border-b border-neutral-800 pb-3 mb-3">
             <h2 className="text-lg font-semibold tracking-tight">Assistant Testing</h2>
           </div>
-          <p className="text-xs text-neutral-500">
-            Names follow (participant 1 - participant 2), e.g. "human-agent" means participant 1 is human and participant 2 is an agent participant.
-          </p>
-          {selectedSimulation && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-xs text-neutral-500 space-y-1">
-              <p>
-                Chat settings from <span className="text-neutral-300">{selectedSimulationName ?? 'the selected simulation'}</span> (change them in the Simulation Toolkit):
-              </p>
-              <ul className="space-y-0.5">
-                {CHAT_SETTINGS.map(({ key, label }) => {
-                  const on = selectedSimulation[key] === true
-                  return (
-                    <li key={key} className={on ? 'text-neutral-300' : 'text-neutral-600'}>
-                      {on ? '✓' : '✗'} {label}{on ? '' : ' — off'}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
           <div className="space-y-3">
             <ActionButton
               label="Create (human-agent)"
@@ -567,9 +627,8 @@ export default function AssistantPage() {
               }
             />
           )}
-        </div>
-
-        {/* <div className="space-y-3">
+        </div> */}
+         {/* <div className="space-y-3">
           <div className="border-b border-neutral-800 pb-3 mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold tracking-tight">Assistant Simulation</h2>
           </div>
@@ -639,7 +698,6 @@ export default function AssistantPage() {
         {simState.result !== null && (
           <ResultBox title="Simulation" state={simState} showMessage />
         )}
-
         {simState.status === 'done' && simExport !== null && (
           <div className="flex flex-wrap gap-3">
             <ActionButton
@@ -650,6 +708,114 @@ export default function AssistantPage() {
             />
           </div>
         )}
+        {/* <div className="space-y-3">
+          <div className="border-b border-neutral-800 pb-3 mb-3">
+            <h2 className="text-lg font-semibold tracking-tight">Test Settings</h2>
+          </div>
+
+          <p className="text-sm font-medium text-neutral-300">Wikipedia Article:</p>
+          <div className="space-y-2">
+            {ARTICLE_PAGES.map((article, i) => (
+              <div
+                key={i}
+                onClick={() => { setSelectedArticleIndex(i); setUseCustomArticle(false) }}
+                className={`w-full flex flex-col items-start gap-1 px-4 py-2.5 rounded-lg border text-sm transition-colors cursor-pointer ${selectedArticleIndex === i && !useCustomArticle
+                    ? 'border-neutral-400 bg-neutral-800 text-neutral-100'
+                    : 'border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600'
+                  }`}
+              >
+                <span>{article.title}</span>
+                <a
+                  href={article.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-2"
+                >
+                  View article ↗
+                </a>
+              </div>
+            ))}
+            {customArticle && (
+              <div
+                onClick={() => setUseCustomArticle(true)}
+                className={`w-full flex flex-col items-start gap-1 px-4 py-2.5 rounded-lg border text-sm transition-colors cursor-pointer ${useCustomArticle
+                    ? 'border-neutral-400 bg-neutral-800 text-neutral-100'
+                    : 'border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600'
+                  }`}
+              >
+                <span>{customArticle.title}</span>
+                <a
+                  href={customArticle.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-2"
+                >
+                  View article ↗
+                </a>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customTitle}
+                onChange={e => setCustomTitle(e.target.value)}
+                disabled={customArticleLoading}
+                placeholder="Enter a WP article title…"
+                className="flex-1 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 placeholder-neutral-500 disabled:opacity-40"
+              />
+              <button
+                onClick={handleAddCustomArticle}
+                disabled={!customTitle.trim() || customArticleLoading}
+                className="px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm transition-colors cursor-pointer"
+              >
+                {customArticleLoading ? 'Adding…' : 'Add'}
+              </button>
+            </div>
+            {customArticleError && (
+              <p className="text-xs text-red-400">{customArticleError}</p>
+            )}
+          </div>
+
+          <p className="text-sm font-medium text-neutral-300">Assistant given to:</p>
+          <div className="space-y-2">
+            {([
+              { checked: p1HasAssistant, setChecked: setP1HasAssistant, label: 'Participant 1' },
+              { checked: p2HasAssistant, setChecked: setP2HasAssistant, label: 'Participant 2' },
+            ] as const).map(option => (
+              <label
+                key={option.label}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg border text-sm transition-colors cursor-pointer ${option.checked
+                    ? 'border-neutral-400 bg-neutral-800 text-neutral-100'
+                    : 'border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-600'
+                  }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={option.checked}
+                  onChange={e => option.setChecked(e.target.checked)}
+                  className="sr-only"
+                />
+                <span
+                  aria-hidden
+                  className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${option.checked
+                      ? 'border-neutral-300 bg-neutral-100'
+                      : 'border-neutral-600 bg-transparent'
+                    }`}
+                >
+                  {option.checked && (
+                    <svg viewBox="0 0 16 16" className="w-3 h-3 text-neutral-950" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 8l3.5 3.5L13 5" />
+                    </svg>
+                  )}
+                </span>
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </div> */}
+        
 
       </div>
     </div>

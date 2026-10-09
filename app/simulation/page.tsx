@@ -7,7 +7,7 @@ import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import * as yaml from 'js-yaml'
 import { Nav } from '../components/Nav'
-import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, describePairing, mediatorMember, type Pairing } from '../components/PairingsEditor'
+import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, describePairing, publicAssistantMember, type Pairing } from '../components/PairingsEditor'
 import { BlockCustomization, DEFAULT_BLOCKS, type Block } from '../components/BlockCustomization'
 import { normalizeBlock, announceSimulationSaved } from '../lib/blocks'
 import { readDraft, writeDraft } from '../lib/drafts'
@@ -15,7 +15,7 @@ import { YamlIOSection } from '../components/YamlIOSection'
 import { SaveSection } from '../components/SaveSection'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { useSavedAgents } from '../lib/agents'
-import { useSavedMediators } from '../lib/mediators'
+import { useSavedPublicAssistants } from '../lib/publicAssistants'
 import { useSavedAssistants } from '../lib/assistants'
 import {
   DEFINITION_KINDS, addToLibrary, describeRefs, fetchLibrary, missingDefinitions, parseContent, readDefinitions,
@@ -23,11 +23,16 @@ import {
   type DefinitionKind, type DefinitionRef, type Definitions, type SimulationData,
 } from '../lib/simulationDefinitions'
 
+// Chat time limit new simulations start with, and the one the backend uses for
+// an all-agent run whose simulation sets no max_time (see `isSim` in the
+// generator). It is not editable in the UI; the note above Simulate shows it.
+const DEFAULT_MAX_TIME_MINUTES = 20
+
 const DEFAULT_SIMULATION = {
   description: '',
   blocks: DEFAULT_BLOCKS,
-  max_utterance: 15,
-  max_time: 30,
+  max_utterance: 50,
+  max_time: DEFAULT_MAX_TIME_MINUTES,
   // Experiment-wide chat settings. New simulations start with both on; one
   // saved without them runs with both off.
   publicize_assistant_messages: true,
@@ -56,19 +61,23 @@ type SimRun = { experiment: string; repeats: string }
 
 const EMPTY_RUN: SimRun = { experiment: '', repeats: '1' }
 
+// How many simulations a row starts; an empty Runs box counts as one.
+function runCount(run: SimRun) {
+  return Math.max(1, Number(run.repeats) || 1)
+}
+
 // What survives navigating away from this page besides the simulation itself,
 // which SaveSection keeps: the Simulate Conversation rows.
 type SimulationDraft = { runs?: SimRun[] }
 const DRAFT_SCOPE = 'simulation'
 
-// How many times a single experiment may be run.
-const MAX_RUNS = 5
+// How many simulations one Simulate may start, summed over every row.
+const MAX_RUNS = 10
+// Upper bound for Max Utterance; the backend clamps to the same value.
+const MAX_UTTERANCE = 50
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
-// The chat time limit the backend falls back to for an all-agent run when the
-// simulation sets no max_time (see `isSim` in the generator).
-const DEFAULT_CHAT_MINUTES = 9
 // Time before the chat starts (profile stage, agents joining — up to 130s) plus
 // a little for the last messages to land, on top of the chat's own limit.
 const PRE_CHAT_BUFFER_MS = 180000
@@ -212,11 +221,11 @@ export default function SimulationPage() {
   // it selectable in the Pairings below.
   const { agents } = useSavedAgents()
 
-  // Mediators come from the Mediator Toolkit the same way, so a mediator saved
+  // Public Assistants come from the Public Assistant Toolkit the same way, so a public assistant saved
   // there is selectable here without anything else being wired up.
-  const { mediators } = useSavedMediators()
+  const { publicAssistants } = useSavedPublicAssistants()
 
-  // Assistants come from the Agent Assistant toolkit, and attach to an agent
+  // Assistants come from the Private Assistant toolkit, and attach to an agent
   // rather than standing in the conversation on their own.
   const { assistants } = useSavedAssistants()
 
@@ -226,6 +235,8 @@ export default function SimulationPage() {
   const [runs, setRuns] = useState<SimRun[]>([{ experiment: '', repeats: '1' }])
   const [notice, setNotice] = useState<string | null>(null)
   const [simulating, setSimulating] = useState(false)
+  const totalRuns = runs.reduce((sum, run) => sum + runCount(run), 0)
+  const [simQuota, setSimQuota] = useState<{ used: number; limit: number } | null>(null)
   const [creating, setCreating] = useState(false)
   // One entry per pairing that was built, in pairing order.
   const [createResults, setCreateResults] = useState<{ label: string; prefix: string; state: ActionState }[]>([])
@@ -255,13 +266,13 @@ export default function SimulationPage() {
   // deleted since) stay selectable, see pickerOptions.
   const definitions = useMemo(() => readDefinitions(simulationParsed ?? {}), [simulationParsed])
   const agentOptions = useMemo(() => pickerOptions(agents, definitions, 'agents', id => id), [agents, definitions])
-  const mediatorOptions = useMemo(() => pickerOptions(mediators, definitions, 'mediators', mediatorMember), [mediators, definitions])
+  const publicAssistantOptions = useMemo(() => pickerOptions(publicAssistants, definitions, 'mediators', publicAssistantMember), [publicAssistants, definitions])
   const assistantOptions = useMemo(() => pickerOptions(assistants, definitions, 'assistants', id => id), [assistants, definitions])
 
   const pairingName = (pairing: Pairing) =>
-    describePairing(pairing, { agents: agentOptions, mediators: mediatorOptions, assistants: assistantOptions })
+    describePairing(pairing, { agents: agentOptions, publicAssistants: publicAssistantOptions, assistants: assistantOptions })
 
-  // Re-reads every referenced agent, mediator and assistant from the library
+  // Re-reads every referenced agent, public assistant and assistant from the library
   // and embeds their current bodies, so an edit made in another tab reaches
   // this simulation (and, through autosave, its saved copy). Applied to the
   // latest state rather than the one this call started from, so an edit made
@@ -285,7 +296,7 @@ export default function SimulationPage() {
 
   // Sync whenever the set of picks changes, after a simulation is loaded or
   // imported (`syncTick`), and when the window regains focus (the Agent,
-  // Mediator or Assistant tab may have saved in the meantime).
+  // Public Assistant or Assistant tab may have saved in the meantime).
   const refsKey = useMemo(() => JSON.stringify(referencedIds(pairings)), [pairings])
   useEffect(() => {
     if (authReady) void syncDefinitions()
@@ -321,6 +332,7 @@ export default function SimulationPage() {
       } else {
         setAuthReady(true)
         setUserEmail(user.email)
+        user.getIdToken().then(fetchQuota)
       }
     })
   }, [router])
@@ -379,7 +391,7 @@ export default function SimulationPage() {
   }
 
   // Each selected row becomes its own experiment: the pairing decides how many
-  // agents talk and whether a mediator joins, and "Runs" becomes the cohort
+  // agents talk and whether a public assistant joins, and "Runs" becomes the cohort
   // count, so one row repeated N times is N cohorts of the same setup.
   async function handleSimulate() {
     const queued = runs
@@ -388,6 +400,12 @@ export default function SimulationPage() {
 
     if (queued.length === 0) {
       setNotice('Pick an experiment to run first.')
+      return
+    }
+
+    const requested = queued.reduce((sum, { run }) => sum + runCount(run), 0)
+    if (requested > MAX_RUNS) {
+      setNotice(`You can run at most ${MAX_RUNS} simulations at once; these rows ask for ${requested}.`)
       return
     }
 
@@ -418,8 +436,8 @@ export default function SimulationPage() {
     // Wait at least as long as the chat is allowed to run, or a healthy
     // conversation longer than the shared wait limit gets reported as timed out.
     const maxTime = Number(simulationParsed?.max_time)
-    const chatMinutes = Number.isFinite(maxTime) && maxTime >= 1 ? maxTime : DEFAULT_CHAT_MINUTES
-    const maxWaitMs = Math.max(await fetchSimMaxWaitMs(idToken), chatMinutes * 60000 + PRE_CHAT_BUFFER_MS)
+    const chatMinutes = Number.isFinite(maxTime) && maxTime >= 1 ? maxTime : DEFAULT_MAX_TIME_MINUTES
+    const maxWaitMs = Math.max(await fetchQuota(idToken), chatMinutes * 60000 + PRE_CHAT_BUFFER_MS)
     setNotice(null)
     setSimResults([])
     setSimulating(true)
@@ -427,7 +445,7 @@ export default function SimulationPage() {
     try {
       for (const { run, pairingIndex } of queued) {
         const { agentCount, seats } = summarizePairing(pairings[pairingIndex])
-        const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
+        const { agentTemplates, assistantTemplates, publicAssistantTemplate, publicAssistant } =
           templatesForPairing(pairings[pairingIndex], runDefinitions)
         const label = pairingName(pairings[pairingIndex])
         let entry: SimResult
@@ -437,8 +455,8 @@ export default function SimulationPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               simulationTemplate,
-              mediator,
-              mediatorTemplate,
+              publicAssistant,
+              publicAssistantTemplate,
               agentTemplates,
               assistantTemplates,
               // Laid out from the same seats Create uses, so Simulate runs the
@@ -468,14 +486,19 @@ export default function SimulationPage() {
       }
     } finally {
       setSimulating(false)
+      void fetchQuota(idToken)
     }
   }
 
-  async function fetchSimMaxWaitMs(idToken: string): Promise<number> {
+  // Refreshes the daily simulation count shown above Simulate and returns how
+  // long a simulation may run before it is reported as timed out.
+  async function fetchQuota(idToken: string): Promise<number> {
     try {
       const res = await fetch(`${API_BASE}/api/quota`, { headers: { Authorization: `Bearer ${idToken}` } })
       if (!res.ok) return MAX_WAIT_TIME_MS
-      return (await res.json()).simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS
+      const data = await res.json()
+      setSimQuota({ used: data.used, limit: data.limit })
+      return data.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS
     } catch {
       return MAX_WAIT_TIME_MS
     }
@@ -587,7 +610,7 @@ export default function SimulationPage() {
   // the one you send to whoever is sitting in that seat. Unlike Simulate it
   // spends no quota, so it is the cheap way to eyeball every setup at once, and
   // it is the only way to run a pairing that seats a human. It still needs the
-  // signed-in user's token to read the agents and mediators they picked.
+  // signed-in user's token to read the agents and public assistants they picked.
   async function handleCreate() {
     const eligible = pairings
       .map((pairing, index) => ({ index, ...summarizePairing(pairing) }))
@@ -620,7 +643,7 @@ export default function SimulationPage() {
     setCreating(true)
     try {
       for (const { index, seats } of eligible) {
-        const { agentTemplates, assistantTemplates, mediatorTemplate, mediator } =
+        const { agentTemplates, assistantTemplates, publicAssistantTemplate, publicAssistant } =
           templatesForPairing(pairings[index], runDefinitions)
         const label = `Create · ${pairingName(pairings[index])}`
         const prefix = `Exp ${index + 1}`
@@ -630,8 +653,8 @@ export default function SimulationPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               simulationTemplate,
-              mediator,
-              mediatorTemplate,
+              publicAssistant,
+              publicAssistantTemplate,
               agentTemplates,
               assistantTemplates,
               // `seats` is what actually lays the run out; `mode` only labels it.
@@ -819,22 +842,18 @@ export default function SimulationPage() {
               </p>
             </Field>
 
-            <Field label="Max Utterance">
+            <Field label={`Max Utterance (1-${MAX_UTTERANCE})`}>
               <input
                 type="number"
                 min={1}
+                max={MAX_UTTERANCE}
                 value={simulationParsed?.max_utterance ?? ''}
-                onChange={e => updateSimulationField('max_utterance', e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-40 px-3 py-2 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500"
-              />
-            </Field>
-
-            <Field label="Max Time">
-              <input
-                type="number"
-                min={1}
-                value={simulationParsed?.max_time ?? ''}
-                onChange={e => updateSimulationField('max_time', e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === '') return updateSimulationField('max_utterance', '')
+                  const n = Math.floor(Number(v))
+                  if (Number.isFinite(n)) updateSimulationField('max_utterance', Math.min(MAX_UTTERANCE, Math.max(1, n)))
+                }}
                 className="w-40 px-3 py-2 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500"
               />
             </Field>
@@ -859,12 +878,12 @@ export default function SimulationPage() {
               </div>
             </Field>
 
-            <Field label="Pairings (combination of agents and mediators)">
+            <Field label="Pairings (combination of agents and public assistants)">
               <PairingsEditor
                 pairings={pairings}
                 onUpdate={updatePairings}
                 agentOptions={agentOptions}
-                mediatorOptions={mediatorOptions}
+                publicAssistantOptions={publicAssistantOptions}
                 assistantOptions={assistantOptions}
               />
             </Field>
@@ -918,10 +937,23 @@ export default function SimulationPage() {
           <div className="border-b border-neutral-800 pb-3 mb-3">
             <h2 className="text-lg font-semibold tracking-tight">Simulate Conversation</h2>
           </div>
+          {simQuota && (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${simQuota.used >= simQuota.limit ? 'bg-red-500' : 'bg-neutral-500'}`}
+                  style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
+                />
+              </div>
+              <span className={`text-xs tabular-nums ${simQuota.used >= simQuota.limit ? 'text-red-400' : 'text-neutral-500'}`}>
+                {simQuota.used}/{simQuota.limit} today
+              </span>
+            </div>
+          )}
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm text-neutral-400">
               <span className="flex-1">Experiment</span>
-              <span className="w-20">Runs</span>
+              <span className="w-24">Runs (1-{MAX_RUNS})</span>
               <span className="w-4" />
             </div>
             {runs.map((run, i) => (
@@ -946,15 +978,17 @@ export default function SimulationPage() {
                 <input
                   type="number"
                   min={1}
-                  max={MAX_RUNS}
+                  max={Math.max(1, MAX_RUNS - (totalRuns - runCount(run)))}
                   value={run.repeats}
                   onChange={e => {
                     const v = e.target.value
                     if (v === '') return updateRun(i, { repeats: '' })
                     const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) updateRun(i, { repeats: String(Math.min(MAX_RUNS, Math.max(1, n))) })
+                    // Capped so the rows together never ask for more than MAX_RUNS.
+                    const room = Math.max(1, MAX_RUNS - (totalRuns - runCount(run)))
+                    if (Number.isFinite(n)) updateRun(i, { repeats: String(Math.min(room, Math.max(1, n))) })
                   }}
-                  className="w-20 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500"
+                  className="w-24 px-3 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500"
                 />
                 <button
                   onClick={() => setRuns(runs.filter((_, j) => j !== i))}
@@ -981,10 +1015,14 @@ export default function SimulationPage() {
               +
             </button>
           </div>
+          <p className="text-xs text-neutral-500">
+            Max wait time: {Number(simulationParsed?.max_time) || DEFAULT_MAX_TIME_MINUTES}:00 minutes
+          </p>
           <ActionButton
             label="Simulate"
             loadingLabel="Simulating…"
             loading={simulating || simWatching}
+            disabled={totalRuns > MAX_RUNS || (simQuota !== null && simQuota.used >= simQuota.limit)}
             onClick={handleSimulate}
           />
           {simResults.map((result, i) => (

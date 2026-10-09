@@ -1,7 +1,7 @@
 'use client'
 
 // One row of an experiment: who sits in the conversation, and which assistant
-// stands behind them. Mediators never take an assistant, so `assistant` stays
+// stands behind them. Public Assistants never take an assistant, so `assistant` stays
 // null on those rows.
 export type PairingMember = { participant: string; assistant: string | null }
 
@@ -17,35 +17,36 @@ export const newPairingId = () =>
 
 export type MemberOption = { value: string; label: string }
 
-// Mediator picks carry this prefix so a stored member value still says which
+// Public Assistant picks carry this prefix so a stored member value still says which
 // library it came from: agents are stored as their bare saved-agent id, and the
 // two are opaque document ids that would otherwise be indistinguishable once a
-// simulation is saved.
-export const MEDIATOR_PREFIX = 'mediator:'
+// simulation is saved. The stored value keeps the original `mediator:` spelling
+// (as does `no_mediator` below) so simulations saved before the rename still load.
+export const PUBLIC_ASSISTANT_PREFIX = 'mediator:'
 
-export const mediatorMember = (id: string) => `${MEDIATOR_PREFIX}${id}`
+export const publicAssistantMember = (id: string) => `${PUBLIC_ASSISTANT_PREFIX}${id}`
 
 // A human seat. It takes a place in the conversation like an agent does, and a
 // run that holds one hands back a join link for it instead of building a
 // participant up front.
 export const HUMAN_MEMBER = 'human'
 
-// Simulations saved while the mediator list was still hardcoded hold these
-// placeholders; they keep counting as a mediator so an old simulation runs the
+// Simulations saved while the public assistant list was still hardcoded hold these
+// placeholders; they keep counting as a public assistant so an old simulation runs the
 // way it used to.
-const LEGACY_MEDIATOR_VALUES = new Set(['mediator1', 'mediator2', 'mediator3'])
+const LEGACY_PUBLIC_ASSISTANT_VALUES = new Set(['mediator1', 'mediator2', 'mediator3'])
 
-const isMediatorMember = (member: string) =>
-  member.startsWith(MEDIATOR_PREFIX) || LEGACY_MEDIATOR_VALUES.has(member)
+const isPublicAssistantMember = (member: string) =>
+  member.startsWith(PUBLIC_ASSISTANT_PREFIX) || LEGACY_PUBLIC_ASSISTANT_VALUES.has(member)
 
 /** Whether a participant pick can have an assistant attached to it. */
 export const takesAssistant = (participant: string) =>
-  participant !== '' && participant !== 'no_mediator' && !isMediatorMember(participant)
+  participant !== '' && participant !== 'no_mediator' && !isPublicAssistantMember(participant)
 
 // A member that is no longer in either library is shown by whatever is left of
-// its stored value, which for a mediator is the id behind the prefix.
+// its stored value, which for a public assistant is the id behind the prefix.
 const memberLabel = (member: string) =>
-  member.startsWith(MEDIATOR_PREFIX) ? member.slice(MEDIATOR_PREFIX.length) : member
+  member.startsWith(PUBLIC_ASSISTANT_PREFIX) ? member.slice(PUBLIC_ASSISTANT_PREFIX.length) : member
 
 /**
  * Reads a pairing's members however they were stored.
@@ -64,7 +65,7 @@ export function normalizeMembers(members: unknown): PairingMember[] {
 }
 
 // What a pairing means to a run: how many agents sit in the conversation,
-// whether a mediator joins them, and which saved templates were picked so the
+// whether a public assistant joins them, and which saved templates were picked so the
 // run can load the ones the user actually authored. Stances are still drawn
 // randomly per cohort; only the prompts come from the picks.
 //
@@ -74,15 +75,15 @@ export function normalizeMembers(members: unknown): PairingMember[] {
 export function summarizePairing(pairing: Pairing) {
   const selected = normalizeMembers(pairing.members)
     .filter(m => m.participant && m.participant !== 'no_mediator')
-  const mediator = selected.find(m => isMediatorMember(m.participant))
+  const publicAssistant = selected.find(m => isPublicAssistantMember(m.participant))
   // Every seat in the conversation, in the order it was laid out, which is the
   // order the run hands them to p1, p2, … A human seat and an agent seat each
-  // take one; the mediator sits outside the count.
-  const seatMembers = selected.filter(m => !isMediatorMember(m.participant))
+  // take one; the public assistant sits outside the count.
+  const seatMembers = selected.filter(m => !isPublicAssistantMember(m.participant))
   const agents = seatMembers.filter(m => m.participant !== HUMAN_MEMBER)
   return {
     agentCount: agents.length,
-    hasMediator: mediator !== undefined,
+    hasPublicAssistant: publicAssistant !== undefined,
     seats: seatMembers.map(
       m => (m.participant === HUMAN_MEMBER ? 'human' : 'agent') as 'human' | 'agent',
     ),
@@ -97,9 +98,9 @@ export function summarizePairing(pairing: Pairing) {
     // Human seats need a join link handed out rather than a built participant.
     humanCount: selected.filter(m => m.participant === HUMAN_MEMBER).length,
     // Null for a legacy placeholder, which names no saved template to load; the
-    // run falls back to the stock mediator for those.
-    mediatorId: mediator?.participant.startsWith(MEDIATOR_PREFIX)
-      ? mediator.participant.slice(MEDIATOR_PREFIX.length)
+    // run falls back to the stock public assistant for those.
+    publicAssistantId: publicAssistant?.participant.startsWith(PUBLIC_ASSISTANT_PREFIX)
+      ? publicAssistant.participant.slice(PUBLIC_ASSISTANT_PREFIX.length)
       : null,
   }
 }
@@ -110,9 +111,9 @@ export function summarizePairing(pairing: Pairing) {
  */
 export function describePairing(
   pairing: Pairing,
-  options: { agents?: MemberOption[]; mediators?: MemberOption[]; assistants?: MemberOption[] },
+  options: { agents?: MemberOption[]; publicAssistants?: MemberOption[]; assistants?: MemberOption[] },
 ) {
-  const labels = new Map([...(options.agents ?? []), ...(options.mediators ?? [])].map(o => [o.value, o.label]))
+  const labels = new Map([...(options.agents ?? []), ...(options.publicAssistants ?? [])].map(o => [o.value, o.label]))
   const assistantLabels = new Map((options.assistants ?? []).map(o => [o.value, o.label]))
   const parts = normalizeMembers(pairing.members)
     .filter(m => m.participant && m.participant !== 'no_mediator')
@@ -132,17 +133,17 @@ function ordinal(n: number) {
 const SELECT_CLASS =
   'flex-1 min-w-0 px-2 py-1.5 rounded-md border border-neutral-700 bg-neutral-800 text-sm text-neutral-200 focus:outline-none focus:border-neutral-500 transition-colors cursor-pointer'
 
-export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediatorOptions = [], assistantOptions = [] }: {
+export function PairingsEditor({ pairings, onUpdate, agentOptions = [], publicAssistantOptions = [], assistantOptions = [] }: {
   pairings: Pairing[]
   onUpdate: (pairings: Pairing[]) => void
   /** Agents saved in the Agent Participants toolkit. */
   agentOptions?: MemberOption[]
-  /** Mediators saved in the Mediator Toolkit; values are already prefixed. */
-  mediatorOptions?: MemberOption[]
-  /** Assistants saved in the Agent Assistant toolkit. */
+  /** Public Assistants saved in the Public Assistant Toolkit; values are already prefixed. */
+  publicAssistantOptions?: MemberOption[]
+  /** Assistants saved in the Private Assistant toolkit. */
   assistantOptions?: MemberOption[]
 }) {
-  const knownValues = new Set([...agentOptions, ...mediatorOptions].map(o => o.value))
+  const knownValues = new Set([...agentOptions, ...publicAssistantOptions].map(o => o.value))
   const knownAssistants = new Set(assistantOptions.map(o => o.value))
   const addExperiment = () => onUpdate([...pairings, { id: newPairingId(), members: [] }])
 
@@ -156,7 +157,7 @@ export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediator
   const addMember = (idx: number) =>
     updateMembers(idx, members => [...members, { participant: '', assistant: null }])
 
-  // Switching a row onto a mediator drops the assistant with it — a mediator has
+  // Switching a row onto a public assistant drops the assistant with it — a public assistant has
   // nowhere to put one, and leaving it set would resurrect it if the row were
   // switched back.
   const setParticipant = (idx: number, memberIdx: number, participant: string) =>
@@ -211,12 +212,12 @@ export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediator
                   className={SELECT_CLASS}
                 >
                   <option value="" disabled>Select…</option>
-                  <optgroup label="Mediators">
-                    <option value="no_mediator">No mediator</option>
-                    {mediatorOptions.length === 0 && (
-                      <option value="" disabled>Save a mediator in the Mediator toolkit</option>
+                  <optgroup label="Public Assistants">
+                    <option value="no_mediator">No public assistant</option>
+                    {publicAssistantOptions.length === 0 && (
+                      <option value="" disabled>Save a public assistant in the Public Assistant toolkit</option>
                     )}
-                    {mediatorOptions.map(o => (
+                    {publicAssistantOptions.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </optgroup>
@@ -231,7 +232,7 @@ export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediator
                   <optgroup label="Humans">
                     <option value={HUMAN_MEMBER}>Human Participant</option>
                   </optgroup>
-                  {/* An agent or mediator the simulation was saved against but
+                  {/* An agent or public assistant the simulation was saved against but
                       that no longer exists still needs an option, or the select
                       would silently blank the choice out. */}
                   {member.participant
@@ -251,7 +252,7 @@ export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediator
                   >
                     <option value="">No Assistant</option>
                     {assistantOptions.length === 0 && (
-                      <option value="" disabled>Save an assistant in the Agent Assistant toolkit</option>
+                      <option value="" disabled>Save an assistant in the Private Assistant toolkit</option>
                     )}
                     {assistantOptions.map(o => (
                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -263,11 +264,11 @@ export function PairingsEditor({ pairings, onUpdate, agentOptions = [], mediator
                     )}
                   </select>
                 ) : (
-                  // Mediators take no assistant, and an empty row has nothing to
+                  // Public Assistants take no assistant, and an empty row has nothing to
                   // attach one to.
                   <span
                     className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-neutral-800 bg-neutral-900 text-sm text-neutral-600 select-none"
-                    title="Mediators do not take an assistant"
+                    title="Public Assistants do not take an assistant"
                   >
                     NA
                   </span>

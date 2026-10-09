@@ -79,7 +79,7 @@ export function StructuredOutputSchema({ config, disabled, onUpdate }: {
       <div className="rounded-lg border border-neutral-800 overflow-hidden">
         <div className="px-4 py-3 border-b border-neutral-800 bg-neutral-900/60">
           <h3 className="text-md font-semibold text-neutral-300">Response Output Fields</h3>
-          <p className="text-sm text-neutral-500 mt-0.5">Edit the descriptions of the mediator output fields.</p>
+          <p className="text-sm text-neutral-500 mt-0.5">Edit the descriptions of the public assistant output fields.</p>
         </div>
         <div className="p-4 space-y-3 bg-neutral-900/20">
           {properties.map((field, i) => (

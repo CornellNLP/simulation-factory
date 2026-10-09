@@ -1,11 +1,11 @@
 import fs from 'fs'
 import yaml from 'js-yaml'
-import { MEDIATOR_DEFAULT } from '../config'
+import { PUBLIC_ASSISTANT_DEFAULT } from '../config'
 import { replaceDefaults, substituteTokens, resolveBlockItems, topicTokens } from '../utils'
 import type { SimulationBlock } from './simulation'
 import {
   buildPromptItems,
-  // buildDefaultMediatorPrompt,
+  // buildDefaultPublicAssistantPrompt,
   buildPersona,
   buildGeneration,
   buildChatSettings,
@@ -34,7 +34,7 @@ interface ChatPromptConfig {
   numRetries: number
 }
 
-export interface AgentMediatorTemplate {
+export interface PublicAssistantTemplate {
   persona: Persona
   promptMap: Record<string, ChatPromptConfig>
 }
@@ -77,17 +77,17 @@ function _chatPrompt(tpl: Record<string, any>, stageId: string, stageIdsInOrder:
 
 // ── Public ────────────────────────────────────────────────────────────────────
 
-export function loadMediatorTemplate(templatePath: string): Record<string, any> {
+export function loadPublicAssistantTemplate(templatePath: string): Record<string, any> {
   const raw = fs.readFileSync(templatePath, 'utf8')
   return yaml.load(raw) as Record<string, any>
 }
 
-export function parseMediatorTemplate(content: string): Record<string, any> {
+export function parsePublicAssistantTemplate(content: string): Record<string, any> {
   return yaml.load(content) as Record<string, any>
 }
 
-export function buildMediator(stageId: string, mediatorTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any> | null, simulationBlocks: SimulationBlock[] = [], blockChoices: Map<string, string> = new Map()): AgentMediatorTemplate {
-  let tpl = replaceDefaults(mediatorTemplate, loadMediatorTemplate(MEDIATOR_DEFAULT))
+export function buildPublicAssistant(stageId: string, publicAssistantTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any> | null, simulationBlocks: SimulationBlock[] = [], blockChoices: Map<string, string> = new Map()): PublicAssistantTemplate {
+  let tpl = replaceDefaults(publicAssistantTemplate, loadPublicAssistantTemplate(PUBLIC_ASSISTANT_DEFAULT))
   tpl = substituteTokens(tpl, topicTokens(topicInfo))
   tpl = resolveBlockItems(tpl, simulationBlocks, blockChoices)
   return {

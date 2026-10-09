@@ -19,7 +19,7 @@ export default function LandingPage() {
 
           <div className="mt-10 w-full flex flex-col gap-3">
             <Link
-              href="/login/assistant-wp"
+              href="/login/private-assistant-wp"
               className="group rounded-xl border border-neutral-800 bg-neutral-900/40 backdrop-blur-sm px-6 py-5 flex items-center justify-between gap-4 text-left hover:border-neutral-600 hover:bg-neutral-900/70 transition-all duration-150"
             >
               <span className="flex flex-col gap-0.5">
@@ -37,7 +37,7 @@ export default function LandingPage() {
             </Link>
 
             <Link
-              href="/login/assistant-reddit"
+              href="/login/private-assistant-reddit"
               className="group rounded-xl border border-neutral-800 bg-neutral-900/40 backdrop-blur-sm px-6 py-5 flex items-center justify-between gap-4 text-left hover:border-neutral-600 hover:bg-neutral-900/70 transition-all duration-150"
             >
               <span className="flex flex-col gap-0.5">
@@ -55,13 +55,13 @@ export default function LandingPage() {
             </Link>
 
             <Link
-              href="/login/mediator"
+              href="/login/public-assistant"
               className="group rounded-xl border border-neutral-800 bg-neutral-900/40 backdrop-blur-sm px-6 py-5 flex items-center justify-between gap-4 text-left hover:border-neutral-600 hover:bg-neutral-900/70 transition-all duration-150"
             >
               <span className="flex flex-col gap-0.5">
-                <span className="text-base font-semibold">Mediator Toolkit</span>
+                <span className="text-base font-semibold">Public Assistant Toolkit</span>
                 <span className="text-sm text-neutral-400">
-                  Build and test civic discourse mediators
+                  Build and test civic discourse public assistants
                 </span>
               </span>
               <span

@@ -8,7 +8,7 @@ import type { PromptItem } from '../components/StructuredPromptEditor'
 
 // One agent participant saved from the Agent Participants toolkit. The id is the
 // Firestore document id, which is derived from the name — saving under a name
-// that already exists overwrites it, matching the mediator and simulation
+// that already exists overwrites it, matching the public assistant and simulation
 // toolkits.
 export type SavedAgent = {
   id: string

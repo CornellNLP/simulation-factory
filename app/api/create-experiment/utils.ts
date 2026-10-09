@@ -40,7 +40,7 @@ export function blockDescriptions(raw: unknown): string[] {
  *
  * A block may offer several alternatives, and exactly one of them is used —
  * every place that block appears in the experiment (the chat stage description,
- * the mediator prompt, every agent prompt in every cohort) has to agree, or the
+ * the public assistant prompt, every agent prompt in every cohort) has to agree, or the
  * conversation describes itself two different ways. `choices` is that agreement:
  * one map per `generate()` call, holding the first draw made for each name.
  */
@@ -65,7 +65,7 @@ export function pickBlockDescription(
  * `descriptions` it had when it was added. The live simulation wins when it
  * still defines that name, so editing a block there updates every prompt
  * referencing it; the copy is the fallback for runs that send no simulation at
- * all (a mediator-toolkit run, or an exported template run on its own).
+ * all (a public-assistant-toolkit run, or an exported template run on its own).
  *
  * Walking the whole template rather than each prompt array covers the response,
  * should-respond, initialization and survey prompts in one pass.
@@ -156,7 +156,7 @@ export function fillAgentStance(
   return [agentTemplate, agentStance]
 }
 
-// The topic lines a mediator or assistant prompt may carry. A simulation-toolkit
+// The topic lines a public assistant or assistant prompt may carry. A simulation-toolkit
 // run has no debate topic (it passes null), so the tokens are blanked there.
 export function topicTokens(topicInfo: Record<string, any> | null): Record<string, string> {
   if (!topicInfo) return { '{topic_name}': '', '{topic_statement}': '' }

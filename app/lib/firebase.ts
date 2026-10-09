@@ -4,17 +4,18 @@ import { getFirestore } from 'firebase/firestore'
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
+
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
- apiKey: "AIzaSyCfyqzBXPAdeaWrRzHVaUzjHl_0HumzhCo",
- authDomain: "convoarenadev.firebaseapp.com",
- databaseURL: "https://convoarenadev-default-rtdb.firebaseio.com",
- projectId: "convoarenadev",
- storageBucket: "convoarenadev.firebasestorage.app",
- messagingSenderId: "634368617031",
- appId: "1:634368617031:web:341548305229f049845f62",
- measurementId: "G-WJ3VZHHEF4"
+ apiKey: "AIzaSyCJ8Tg39Q7e7765GEC_QtjeuUs9U1pHgsI",
+ authDomain: "traust-491612.firebaseapp.com",
+ databaseURL: "https://traust-491612-default-rtdb.firebaseio.com",
+ projectId: "traust-491612",
+ storageBucket: "traust-491612.firebasestorage.app",
+ messagingSenderId: "982548588385",
+ appId: "1:982548588385:web:ddca77bbcf01ea8c184720",
+ measurementId: "G-GMHWWLDEBL"
 };
 
 

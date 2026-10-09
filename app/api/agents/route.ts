@@ -14,7 +14,7 @@ async function verifyEmail(req: Request): Promise<string | null> {
 
 // GET /api/agents — list the user's saved agent participants
 //
-// Unlike simulations and mediators these are small enough to hand back whole,
+// Unlike simulations and public assistants these are small enough to hand back whole,
 // so there is no separate /load route: the agent toolkit needs every prompt to
 // render its library, and the simulation toolkit only reads the names.
 export async function GET(req: Request) {

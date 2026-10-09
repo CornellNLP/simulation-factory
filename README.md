@@ -1,25 +1,25 @@
-# Mediator Toolkit
+# Public Assistant Toolkit
 
-A web toolkit, built by [CornellNLP](https://www.cs.cornell.edu/~cristian/), for authoring and running **mediated multi-party conversation simulations**. Researchers use it to design LLM **agents**, **mediators**, and **assistants** as reusable YAML templates, pair them into experiments, and run those experiments on the external **ConvoArena** platform. Completed experiments can be exported as [ConvoKit](https://convokit.cornell.edu/) corpora for analysis via the companion [`convokit-service`](./convokit-service/README.md).
+A web toolkit, built by [CornellNLP](https://www.cs.cornell.edu/~cristian/), for authoring and running **mediated multi-party conversation simulations**. Researchers use it to design LLM **agents**, **public assistants**, and **private assistants** as reusable YAML templates, pair them into experiments, and run those experiments on the external **ConvoArena** platform. Completed experiments can be exported as [ConvoKit](https://convokit.cornell.edu/) corpora for analysis via the companion [`convokit-service`](./convokit-service/README.md).
 
 ## Toolkits
 
 The app is organized as a set of authoring toolkits that share one Next.js codebase:
 
-- **Simulation** (`/simulation`) — pair agents, mediators, and assistants into an experiment, then run and export it.
-- **Mediator** (`/mediator`) — author mediator prompts that referee a discussion.
+- **Simulation** (`/simulation`) — pair agents, public assistants, and private assistants into an experiment, then run and export it.
+- **Public Assistant** (`/public-assistant`) — author public assistant prompts that referee a discussion.
 - **Agent Participant** (`/agent-participant`) — author LLM personas that take part in a conversation.
-- **Assistant** (`/assistant`, `/assistant-reddit`, `/assistant-wp`) — author assistants that privately help one human participant, including domain-specific variants for Reddit (ChangeMyView-style) and Wikipedia talk-page discussions.
+- **Private Assistant** (`/private-assistant`, `/private-assistant-reddit`, `/private-assistant-wp`) — author assistants that privately help one human participant, including domain-specific variants for Reddit (ChangeMyView-style) and Wikipedia talk-page discussions.
 
 ## Architecture
 
-1. A researcher authors agent/mediator/assistant templates in the relevant toolkit and saves them to their personal library (Firestore).
+1. A researcher authors agent/public-assistant/private-assistant templates in the relevant toolkit and saves them to their personal library (Firestore).
 2. In the Simulation toolkit, templates are paired together into an experiment definition.
 3. `app/api/create-experiment` (`generator.ts` + `parsers/*`) assembles a full experiment payload and sends it to the external **ConvoArena** backend (Firebase Cloud Functions), authenticated with `DL_API_KEY`. TrAuSt is the engine that actually runs the conversation (human-human, human-agent, or agent-agent) — it lives in a separate repository, not this one.
 4. The toolkit polls experiment progress (`app/api/simulation-status`) and exports results (`app/api/export-experiment`).
 5. Exported results can optionally be converted into a ConvoKit corpus by the standalone Python **`convokit-service`** microservice — see [`convokit-service/README.md`](./convokit-service/README.md) for details on that service.
 
-Firebase (Firestore + Auth) is used throughout for sign-in and for storing each user's library of saved agents, mediators, assistants, and templates.
+Firebase (Firestore + Auth) is used throughout for sign-in and for storing each user's library of saved agents, public assistants, private assistants, and templates.
 
 ## Tech stack
 
@@ -72,11 +72,11 @@ This builds and starts both the `web` service (port 3000) and the `convokit` ser
 |---|---|
 | `app/` | Next.js App Router pages and components for each toolkit |
 | `app/api/` | Server-side route handlers — experiment creation (`create-experiment/`), status polling, export, ConvoKit proxy, template/agent CRUD, quota, auth |
-| `app/lib/` | Shared domain logic: Firebase clients, agents/mediators/assistants/templates models, drafts/autosave |
+| `app/lib/` | Shared domain logic: Firebase clients, agents/public assistants/private assistants/templates models, drafts/autosave |
 | `app/components/` | Shared UI components (pairings editor, prompt editor, nav, etc.) |
 | `convokit-service/` | Standalone Python/FastAPI microservice that exports experiments to ConvoKit corpora |
 | `scripts/` | Dev helper scripts (e.g. `sync-dl-key.mjs`) |
-| `public/templates/` | Default and topic-specific YAML templates for experiments, agents, mediators, and assistants |
+| `public/templates/` | Default and topic-specific YAML templates for experiments, agents, public assistants, and private assistants |
 
 ## Environment variables
 

@@ -13,13 +13,13 @@ export type FieldDef =
   | { label: string; description: string; path: string[]; type: 'checkbox' }
   | { label: string; description: string; path: string[]; type: 'select'; options: { value: string; label: string }[] }
 
-// ── MediatorSection ──────────────────────────────────────────────────────────
+// ── ConfigSection ──────────────────────────────────────────────────────────
 
-export function MediatorSection({ title, fields, mediatorParsed, onUpdate }: {
+export function ConfigSection({ title, fields, parsed, onUpdate }: {
   id?: string
   title: string
   fields: FieldDef[]
-  mediatorParsed: Record<string, unknown> | null
+  parsed: Record<string, unknown> | null
   onUpdate: (path: string[], value: string | boolean | number) => void
 }) {
   const [openEmoji, setOpenEmoji] = useState<string | null>(null)
@@ -27,7 +27,7 @@ export function MediatorSection({ title, fields, mediatorParsed, onUpdate }: {
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
 
   function getRawAt(path: string[]): unknown {
-    let obj: unknown = mediatorParsed
+    let obj: unknown = parsed
     for (const key of path) {
       if (obj == null || typeof obj !== 'object') return undefined
       obj = (obj as Record<string, unknown>)[key]
