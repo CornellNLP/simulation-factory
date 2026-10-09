@@ -4,11 +4,11 @@ import {
   STAGE_R1, POST_SURVEY_STAGE_ID, EXPERIMENT_DEFAULT,
   PRE_SURVEY_STAGE_ID,
 } from './config'
-import { parseMediatorTemplate, buildMediator } from './parsers/mediator'
+import { parsePublicAssistantTemplate, buildPublicAssistant } from './parsers/publicAssistant'
 import { buildAgent } from './parsers/agent'
 import type { AgentParticipantTemplate } from './parsers/agent'
 import { parseAssistantTemplate, buildAssistant } from './parsers/assistant'
-import type { AgentAssistantTemplate } from './parsers/assistant'
+import type { PrivateAssistantTemplate } from './parsers/assistant'
 import { buildTopic, buildStages, buildExperiment, type CohortFlags } from './parsers/experiment'
 import { parseSimulationTemplate, applySimulationToChatStage } from './parsers/simulation'
 import { loadTemplate, replaceDefaults, fillAgentStance, fillAgentWithoutStance, agentConfig, createParticipant, excludeNone, resolveBlockItems, pickBlockDescription } from './utils'
@@ -68,7 +68,7 @@ function customTemplateFor(
 }
 
 // The seats `mode` stands for. The three modes each describe one fixed layout,
-// which is all the mediator, agent and assistant toolkits ever ask for.
+// which is all the public assistant, agent and private assistant toolkits ever ask for.
 function seatsForMode(mode: Mode, numAgents?: number): ('human' | 'agent')[] {
   if (mode === 'agent-agent') {
     const count = numAgents && numAgents >= 2 ? numAgents : AGENT_TEMPLATE_FILES.length
@@ -102,14 +102,14 @@ function participantSlotsFor(mode: Mode, numAgents?: number, templateSet?: 'redd
   })
 }
 
-// Mediator randomization within each cohort
+// Public Assistant randomization within each cohort
 const BIAS_VARIABLE_CONFIG = {
   id: 'bias-target',
   type: 'random_permutation',
   scope: 'cohort',
   definition: {
     name: 'target_bias_position',
-    description: 'Which side the mediator favors (randomized per cohort)',
+    description: 'Which side the public assistant favors (randomized per cohort)',
     schema: { type: 'array', items: { type: 'string' } },
   },
   shuffleConfig: { shuffle: true, seed: 'cohort', customSeed: '' },
@@ -118,8 +118,8 @@ const BIAS_VARIABLE_CONFIG = {
   numToSelect: 1,
 }
 
-// A simulation-toolkit run has no debate statement for a mediator to favor a side
-// of, so any "Target Bias position" item left in a mediator it reuses is dropped
+// A simulation-toolkit run has no debate statement for a public assistant to favor a side
+// of, so any "Target Bias position" item left in a public assistant it reuses is dropped
 // rather than rendered as an unfilled `{{target_bias_position}}`.
 function dropBiasItems(value: any): any {
   if (Array.isArray(value)) return value.filter((v) => v?.type !== 'BIASED').map(dropBiasItems)
@@ -129,7 +129,7 @@ function dropBiasItems(value: any): any {
   return value
 }
 
-export async function generate(p1: string, p2: string, experimentTemplatePath: string, mediatorTemplateContent: string | null | undefined,
+export async function generate(p1: string, p2: string, experimentTemplatePath: string, publicAssistantTemplateContent: string | null | undefined,
                           mode: Mode, numCohorts?: number, numUtterances?: number, action?: 'create' | 'simulate',
                           simulationTemplateContent?: string, numAgents?: number, assistantTemplateContent?: string,
                           postTitle?: string, postDescription?: string,
@@ -154,7 +154,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
     : null
 
   // A block can offer several alternative descriptions, and one of them is drawn
-  // for the whole experiment: the chat stage description, the mediator prompt and
+  // for the whole experiment: the chat stage description, the public assistant prompt and
   // every agent prompt in every cohort must describe the conversation the same
   // way. Drawing here, before anything is built, also lets the live simulation
   // win over the stale copy a prompt item may carry for the same block name.
@@ -177,13 +177,13 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   // Simulations are just the conversation, so the surveys around it are dropped
   // and the run goes profile -> conversation. The simulation template carries no
   // surveys of its own; this also keeps them out should it inherit any.
-  // Mediator-toolkit runs keep them.
+  // Public Assistant toolkit runs keep them.
   const SIM_SKIPPED_STAGES = [PRE_SURVEY_STAGE_ID, POST_SURVEY_STAGE_ID]
   const stages = buildStages(experimentTemplate, topicInfo, postTitle, postDescription)
     .filter((s) => !(simulation && SIM_SKIPPED_STAGES.includes(s.id)))
   const stageIdsInOrder = stages.map((s) => s.id)
 
-  // one mediator + one chat supported for now
+  // one public assistant + one chat supported for now
   const chatStageId = stages.find((s) => s.kind === 'chat')?.id ?? STAGE_R1
   // Null when the run has no pre-discussion survey, so no prompt is built for one.
   const preSurveyStageId = stages.find((s) => s.kind === 'survey' && s.id === PRE_SURVEY_STAGE_ID)?.id
@@ -192,14 +192,14 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const postSurveyStageId = [...stages].reverse().find((s) => s.kind === 'survey')?.id
     ?? (simulation ? null : POST_SURVEY_STAGE_ID)
 
-  // A run may deliberately have no mediator, in which case the experiment is
+  // A run may deliberately have no public assistant, in which case the experiment is
   // created with an empty `agentMediators` list.
   // A simulation-toolkit run is a conversation, not a debate: it has no topic
-  // statement, no sides and so no mediator bias. Only the debate toolkits use them.
-  const mediatorR1 = mediatorTemplateContent
+  // statement, no sides and so no public assistant bias. Only the debate toolkits use them.
+  const publicAssistantR1 = publicAssistantTemplateContent
     ? (simulation
-        ? buildMediator(chatStageId, dropBiasItems(parseMediatorTemplate(mediatorTemplateContent)), stageIdsInOrder, null, simulation.blocks, blockChoices)
-        : buildMediator(chatStageId, parseMediatorTemplate(mediatorTemplateContent), stageIdsInOrder, topicInfo, [], blockChoices))
+        ? buildPublicAssistant(chatStageId, dropBiasItems(parsePublicAssistantTemplate(publicAssistantTemplateContent)), stageIdsInOrder, null, simulation.blocks, blockChoices)
+        : buildPublicAssistant(chatStageId, parsePublicAssistantTemplate(publicAssistantTemplateContent), stageIdsInOrder, topicInfo, [], blockChoices))
     : null
 
   const roleFor = (slot: string): 'OP' | 'Challenger' | undefined =>
@@ -229,10 +229,10 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   // once the seats are laid out. They are experiment-wide rather than per-cohort:
   // `agentAssistants` holds one definition each, which every cohort's agents then
   // point at through `persona.assistantId`.
-  const assistants: AgentAssistantTemplate[] = []
+  const assistants: PrivateAssistantTemplate[] = []
   const assistantIdForSlot: Record<string, string> = {}
   // Assistant prompts can reference simulation blocks too, and must draw the
-  // same option the chat stage, mediator and agents got.
+  // same option the chat stage, public assistant and agents got.
   const parseAssistant = (content: string) =>
     resolveBlockItems(parseAssistantTemplate(content), simulation?.blocks ?? [], blockChoices)
   const assistantTopic = simulation ? null : topicInfo
@@ -246,7 +246,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
       if (!content) return
       const assistant = buildAssistant(chatStageId, parseAssistant(content), stageIdsInOrder, assistantTopic, postTitle, postDescription, roleFor(slot))
       // The same collision the agent templates have: every assistant one user
-      // saves carries the same persona id (the Agent Assistant toolkit derives it
+      // saves carries the same persona id (the Private Assistant toolkit derives it
       // from their email and does not expose it for editing), so this suffix is
       // the only thing keeping two of them apart inside one experiment.
       assistant.persona.id = `${assistant.persona.id}-${slot}`
@@ -284,7 +284,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   if (chatStage) {
     if (isSim) {
       // currently not removing the timer limit, in case simulation gets stuck in some cohorts, they can still finish within this time.
-      chatStage.timeLimitInMinutes = 9
+      chatStage.timeLimitInMinutes = 20  // DEFAULT_MAX_TIME_MINUTES in the Simulation Toolkit
       chatStage.requireFullTime = false
       if (numUtterances != null) chatStage.numUtterances = numUtterances  // else keep template default
     } else {
@@ -373,7 +373,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
         }
 
         // Agent prompts can reference simulation blocks too, so they go through
-        // the same resolution as the mediator's.
+        // the same resolution as the public assistant's.
         const resolved = resolveBlockItems(filled, simulation?.blocks ?? [], blockChoices)
 
         configs.push(resolved.agent_config ?? '')
@@ -397,10 +397,10 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
     publicizeAssistantMessages: simulation?.publicizeAssistantMessages ?? requestFlags.publicizeAssistantMessages,
     allowPublicMessageDeletion: simulation?.allowPublicMessageDeletion ?? requestFlags.allowPublicMessageDeletion,
   }
-  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length, cohortFlags)
-  // Nothing to randomize a bias for when the run has no mediator, or when it is a
+  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, publicAssistantR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length, cohortFlags)
+  // Nothing to randomize a bias for when the run has no public assistant, or when it is a
   // simulation-toolkit conversation with no sides to favor.
-  template.experiment.variableConfigs = mediatorR1 && !simulation ? [BIAS_VARIABLE_CONFIG] : []
+  template.experiment.variableConfigs = publicAssistantR1 && !simulation ? [BIAS_VARIABLE_CONFIG] : []
 
   // A cohort holds exactly the run's participants, however many that is.
   template.experiment.defaultCohortConfig.minParticipantsPerCohort = participantSlots.length
@@ -491,7 +491,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const experimentUrl = `${FRONTEND_BASE}/#/e/${expId}`
 
   const biasFor = (i: number) => {
-    // Absent whenever the run has no mediator to be biased in the first place.
+    // Absent whenever the run has no public assistant to be biased in the first place.
     const raw = cohortBias[i]?.target_bias_position
     if (!raw) return null
     const parse = (s: string) => { try { return JSON.parse(s) } catch { return s } }
@@ -502,7 +502,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const cohorts = cohortIds.map((cid, i) => {
     const cohortUrl = `${FRONTEND_BASE}/#/e/${expId}/c/${cid}`
     // Stances only ever describe the agents, so a run without any leaves them out,
-    // and a simulation-toolkit run draws neither stances nor a mediator bias.
+    // and a simulation-toolkit run draws neither stances nor a public assistant bias.
     const stances = simulation
       ? {}
       : { ...(agentSlots.length > 0 ? { agent_stances: agentStances[i] } : {}), mediator_bias: biasFor(i) }

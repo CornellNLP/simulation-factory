@@ -1,9 +1,9 @@
 import crypto from 'crypto'
 import { COMPLETION_CODE } from '../config'
 import { wrapChars } from '../utils'
-import type { AgentMediatorTemplate } from './mediator'
+import type { PublicAssistantTemplate } from './publicAssistant'
 import type { AgentParticipantTemplate } from './agent'
-import type { AgentAssistantTemplate } from './assistant'
+import type { PrivateAssistantTemplate } from './assistant'
 import { substituteTokens } from '../utils'
 
 
@@ -44,11 +44,11 @@ export function buildExperiment(
   topicInfo: Record<string, any>,
   stages: Record<string, any>[],
   stageIdsInOrder: string[],
-  mediator: AgentMediatorTemplate | null | undefined,
+  publicAssistant: PublicAssistantTemplate | null | undefined,
   agents: AgentParticipantTemplate[] | null,
   mode: string,
   sim: boolean,
-  assistants: AgentAssistantTemplate[] | null = null,
+  assistants: PrivateAssistantTemplate[] | null = null,
   postTitle?: string,
   postDescription?: string,
   // How many seats the run holds. The cohort has to be sized to it, or a run of
@@ -134,7 +134,7 @@ export function buildExperiment(
       unlockDurationMs: exp.unlockDurationMs ?? null,
     },
     stageConfigs: stages,
-    agentMediators: mediator ? [mediator] : [],
+    agentMediators: publicAssistant ? [publicAssistant] : [],
     agentParticipants: agents ?? [],
     agentAssistants: assistants ?? [],
   }

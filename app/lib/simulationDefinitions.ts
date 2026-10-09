@@ -1,8 +1,8 @@
 import * as yaml from 'js-yaml'
 import { API_BASE } from './config'
-import { MEDIATOR_PREFIX, summarizePairing, type Pairing } from '../components/PairingsEditor'
+import { PUBLIC_ASSISTANT_PREFIX, summarizePairing, type Pairing } from '../components/PairingsEditor'
 
-// A simulation file carries the agents, mediators and assistants its pairings
+// A simulation file carries the agents, public assistants and private assistants its pairings
 // pick, so one YAML is enough to rebuild the same experiment on another account.
 // Pairings still reference them by library id; `definitions` holds the body of
 // each referenced id under that same id.
@@ -14,6 +14,8 @@ import { MEDIATOR_PREFIX, summarizePairing, type Pairing } from '../components/P
 // does not hold — a file from someone else, or an agent deleted since — runs
 // from the copy embedded here.
 
+// The kind keys (`mediators` included) are written into saved simulation files,
+// so they keep their original spelling.
 export type DefinitionKind = 'agents' | 'mediators' | 'assistants'
 
 export const DEFINITION_KINDS: DefinitionKind[] = ['agents', 'mediators', 'assistants']
@@ -26,8 +28,8 @@ export const KIND_COLLECTION = {
 
 const KIND_LABEL: Record<DefinitionKind, string> = {
   agents: 'agent',
-  mediators: 'mediator',
-  assistants: 'assistant',
+  mediators: 'public assistant',
+  assistants: 'private assistant',
 }
 
 // `content` is the template body as a YAML tree rather than the string the
@@ -69,7 +71,7 @@ export function parseContent(content: string): unknown {
 }
 
 // The string create-experiment expects: the agent parser only reads JSON, and
-// the mediator and assistant parsers read YAML, which JSON also is.
+// the public and private assistant parsers read YAML, which JSON also is.
 export function contentString(content: unknown): string {
   return typeof content === 'string' ? content : JSON.stringify(content)
 }
@@ -81,10 +83,10 @@ export function sameContent(a: unknown, b: unknown): boolean {
 export function referencedIds(pairings: Pairing[]): Record<DefinitionKind, string[]> {
   const sets = { agents: new Set<string>(), mediators: new Set<string>(), assistants: new Set<string>() }
   for (const p of pairings) {
-    const { agentIds, seatAssistantIds, mediatorId } = summarizePairing(p)
+    const { agentIds, seatAssistantIds, publicAssistantId } = summarizePairing(p)
     agentIds.forEach(id => sets.agents.add(id))
     seatAssistantIds.forEach(id => { if (id) sets.assistants.add(id) })
-    if (mediatorId) sets.mediators.add(mediatorId)
+    if (publicAssistantId) sets.mediators.add(publicAssistantId)
   }
   return {
     agents: [...sets.agents].sort(),
@@ -161,7 +163,7 @@ export function describeRefs(refs: DefinitionRef[]): string {
  * template, which would run a different experiment than the one shared.
  */
 export function templatesForPairing(pairing: Pairing, definitions: Definitions) {
-  const { agentIds, seatAssistantIds, mediatorId, hasMediator } = summarizePairing(pairing)
+  const { agentIds, seatAssistantIds, publicAssistantId, hasPublicAssistant } = summarizePairing(pairing)
   const missing: DefinitionRef[] = []
   const body = (kind: DefinitionKind, id: string) => {
     const def = definitions[kind][id]
@@ -170,14 +172,14 @@ export function templatesForPairing(pairing: Pairing, definitions: Definitions) 
   }
   const agentTemplates = agentIds.map(id => body('agents', id))
   const assistantTemplates = seatAssistantIds.map(id => (id ? body('assistants', id) : null))
-  const mediatorTemplate = mediatorId ? body('mediators', mediatorId) : null
+  const publicAssistantTemplate = publicAssistantId ? body('mediators', publicAssistantId) : null
   return {
     missing,
     agentTemplates,
     assistantTemplates,
-    mediatorTemplate,
-    // A legacy mediator placeholder names no template, so it runs the stock one.
-    mediator: mediatorTemplate ? 'template' : hasMediator ? 'preset' : 'none',
+    publicAssistantTemplate,
+    // A legacy public assistant placeholder names no template, so it runs the stock one.
+    publicAssistant: publicAssistantTemplate ? 'template' : hasPublicAssistant ? 'preset' : 'none',
   }
 }
 
@@ -188,7 +190,7 @@ export function renameInPairings(pairings: Pairing[], kind: DefinitionKind, from
     ...p,
     members: p.members.map(m => {
       if (kind === 'assistants') return m.assistant === from ? { ...m, assistant: to } : m
-      if (kind === 'mediators') return m.participant === `${MEDIATOR_PREFIX}${from}` ? { ...m, participant: `${MEDIATOR_PREFIX}${to}` } : m
+      if (kind === 'mediators') return m.participant === `${PUBLIC_ASSISTANT_PREFIX}${from}` ? { ...m, participant: `${PUBLIC_ASSISTANT_PREFIX}${to}` } : m
       return m.participant === from ? { ...m, participant: to } : m
     }),
   }))

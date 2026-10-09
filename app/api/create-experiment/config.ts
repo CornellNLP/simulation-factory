@@ -22,14 +22,14 @@ export const API_KEY = resolveDlApiKey()
 
 export const PROJECT_ROOT = process.cwd()
 
-export const MEDIATOR_DEFAULT = path.join(PROJECT_ROOT, 'public', 'templates', 'defaults', 'mediator.yaml')
-// Stock mediator used when a caller (e.g. the simulation toolkit) runs without
-// authoring one. Same file the mediator toolkit seeds its editor with, and it
-// is layered over MEDIATOR_DEFAULT by buildMediator just like an authored one.
-export const MEDIATOR_PRESET = path.join(PROJECT_ROOT, 'public', 'templates', 'competition', 'mediator.yaml')
+export const PUBLIC_ASSISTANT_DEFAULT = path.join(PROJECT_ROOT, 'public', 'templates', 'defaults', 'mediator.yaml')
+// Stock public assistant used when a caller (e.g. the simulation toolkit) runs without
+// authoring one. Same file the public assistant toolkit seeds its editor with, and it
+// is layered over PUBLIC_ASSISTANT_DEFAULT by buildPublicAssistant just like an authored one.
+export const PUBLIC_ASSISTANT_PRESET = path.join(PROJECT_ROOT, 'public', 'templates', 'competition', 'mediator.yaml')
 export const ASSISTANT_DEFAULT = path.join(PROJECT_ROOT, 'public', 'templates', 'defaults', 'assistant.yaml')
 export const EXPERIMENT_DEFAULT = path.join(PROJECT_ROOT, 'public', 'templates', 'defaults', 'experiment.yaml')
-export const COMPETITION_MEDIATOR = path.join(PROJECT_ROOT, 'public', 'templates', 'competition', 'mediator.yaml')
+export const COMPETITION_PUBLIC_ASSISTANT = path.join(PROJECT_ROOT, 'public', 'templates', 'competition', 'mediator.yaml')
 
 export const STAGE_R1 = 'chat-round-1'
 export const PRE_SURVEY_STAGE_ID = "pre-survey"

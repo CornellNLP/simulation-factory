@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Assistant Toolkit',
+  title: 'Private Assistant Toolkit',
   description: "Develop a custom assistant"
 }
 

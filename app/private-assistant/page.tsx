@@ -7,11 +7,10 @@ import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import * as yaml from 'js-yaml'
 import { StructuredPromptEditor, type PromptItem } from '../components/StructuredPromptEditor'
-import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
-import { MediatorSection } from '../components/MediatorSection'
+import { type ActionState } from '../components/ExperimentActions'
+import { ConfigSection } from '../components/ConfigSection'
 import { Nav } from '../components/Nav'
 import { SaveSection } from '../components/SaveSection'
-import { YamlIOSection } from '../components/YamlIOSection'
 import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
 import { useSimulationBlocks, type Block } from '../lib/blocks'
 
@@ -398,7 +397,7 @@ export default function AssistantPage() {
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Assistant Toolkit</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">Private Assistant Toolkit</h1>
               <p className="text-base text-neutral-500 mt-1">Create and test custom private discussion assistants.</p>
             </div>
 
@@ -492,9 +491,9 @@ export default function AssistantPage() {
             <h2 className="text-lg font-semibold tracking-tight">Assistant Configuration</h2>
           </div>
 
-          <MediatorSection
+          <ConfigSection
             title="Assistant Persona"
-            mediatorParsed={assistantParsed}
+            parsed={assistantParsed}
             onUpdate={updateAssistantField}
             fields={[
               { label: 'Name', description: 'Displayed name of the assistant.', path: ['persona', 'name'], type: 'text' },
@@ -503,154 +502,6 @@ export default function AssistantPage() {
           />
 
         </div>
-      </div>
-
-      {/* Right column — testing & simulation */}
-      <div className="lg:flex-1 lg:overflow-y-auto p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
-        <YamlIOSection label="Assistant" filename="assistant.yaml" data={assistantData} setData={setAssistantData} />
-        <div className="space-y-3">
-          <div className="border-b border-neutral-800 pb-3 mb-3">
-            <h2 className="text-lg font-semibold tracking-tight">Assistant Testing</h2>
-          </div>
-          <p className="text-xs text-neutral-500">
-            Names follow (participant 1 - participant 2), e.g. "human-agent" means participant 1 is human and participant 2 is an agent participant.
-          </p>
-          {selectedSimulation && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-xs text-neutral-500 space-y-1">
-              <p>
-                Chat settings from <span className="text-neutral-300">{selectedSimulationName ?? 'the selected simulation'}</span> (change them in the Simulation Toolkit):
-              </p>
-              <ul className="space-y-0.5">
-                {CHAT_SETTINGS.map(({ key, label }) => {
-                  const on = selectedSimulation[key] === true
-                  return (
-                    <li key={key} className={on ? 'text-neutral-300' : 'text-neutral-600'}>
-                      {on ? '✓' : '✗'} {label}{on ? '' : ' — off'}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
-          <div className="space-y-3">
-            <ActionButton
-              label="Create (human-agent)"
-              loadingLabel="Creating…"
-              loading={creating === 'human-agent'}
-              disabled={busy}
-              onClick={() => handleCreate('human-agent')}
-            />
-            <ActionButton
-              label="Create (human-human)"
-              loadingLabel="Creating…"
-              loading={creating === 'human-human'}
-              disabled={busy}
-              onClick={() => handleCreate('human-human')}
-            />
-            <ActionButton
-              label="Create (agent-agent)"
-              loadingLabel="Creating…"
-              loading={creating === 'agent-agent' && createAction === 'create'}
-              disabled={busy}
-              onClick={() => handleCreate('agent-agent', 'create')}
-            />
-          </div>
-
-          {createState.result !== null && (
-            <ResultBox
-              title="Create"
-              state={createState}
-              links={
-                createState.status === 'done' && typeof createState.result === 'object' && createState.result !== null
-                  ? createState.result
-                  : undefined
-              }
-            />
-          )}
-        </div>
-
-        {/* <div className="space-y-3">
-          <div className="border-b border-neutral-800 pb-3 mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight">Assistant Simulation</h2>
-          </div>
-          {simQuota && (
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${simQuota.used >= simQuota.limit ? 'bg-red-500' : 'bg-neutral-500'}`}
-                  style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
-                />
-              </div>
-              <span className={`text-xs tabular-nums ${simQuota.used >= simQuota.limit ? 'text-red-400' : 'text-neutral-500'}`}>
-                {simQuota.used}/{simQuota.limit} today
-              </span>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-3">
-            <div>
-              <input
-                type="text"
-                min={1}
-                max={30}
-                value={numCohorts}
-                onChange={e => {
-                  const v = e.target.value
-                  if (v === '') return setNumCohorts('')
-                  const n = Math.floor(Number(v))
-                  if (Number.isFinite(n)) setNumCohorts(String(Math.min(30, Math.max(1, n))))
-                }}
-                disabled={busy}
-                className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-              /> <label className="text-sm text-neutral-400">Discussions (1-30)</label>
-            </div>
-            <div>
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={numUtterances}
-                onChange={e => {
-                  const v = e.target.value
-                  if (v === '') return setNumUtterances('')
-                  const n = Math.floor(Number(v))
-                  if (Number.isFinite(n)) setNumUtterances(String(Math.min(20, Math.max(1, n))))
-                }}
-                disabled={busy}
-                className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-              /> <label className="text-sm text-neutral-400">Messages (1-20)</label>
-            </div>
-            <div className="flex flex-col">
-              <label className="text-sm text-neutral-400">Max wait time: {(() => { const s = Math.round((simQuota?.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()} minutes</label>
-              {simStartTime !== null && (
-                <label className="text-sm text-neutral-400">
-                  {simState.status === 'loading' ? 'Elapsed' : 'Completed in'}: {Math.floor(simElapsed / 60)}:{String(simElapsed % 60).padStart(2, '0')} minutes
-                </label>
-              )}
-            </div>
-            <ActionButton
-              label="Simulate"
-              loadingLabel="Simulating…"
-              loading={(creating === 'agent-agent' && createAction === 'simulate') || simState.status === 'loading'}
-              disabled={busy || (simQuota !== null && simQuota.used >= simQuota.limit)}
-              onClick={handleCreateSim}
-            />
-          </div>
-        </div> */}
-        {simState.result !== null && (
-          <ResultBox title="Simulation" state={simState} showMessage />
-        )}
-
-        {simState.status === 'done' && simExport !== null && (
-          <div className="flex flex-wrap gap-3">
-            <ActionButton
-              label="Download ConvoKit corpus (zip)"
-              loadingLabel="Converting…"
-              loading={convokitLoading}
-              onClick={downloadConvokit}
-            />
-          </div>
-        )}
-
       </div>
     </div>
   )

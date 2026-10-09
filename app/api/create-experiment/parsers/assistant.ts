@@ -31,7 +31,7 @@ interface ChatPromptConfig {
   numRetries: number
 }
 
-export interface AgentAssistantTemplate {
+export interface PrivateAssistantTemplate {
   persona: AssistantPersona
   promptMap: Record<string, ChatPromptConfig>
 }
@@ -63,7 +63,7 @@ export function parseAssistantTemplate(content: string): Record<string, any> {
   return yaml.load(content) as Record<string, any>
 }
 
-export function buildAssistant(stageId: string, assistantTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any> | null, postTitle?: string, postDescription?: string, assistedRole?: string): AgentAssistantTemplate {
+export function buildAssistant(stageId: string, assistantTemplate: Record<string, any>, stageIdsInOrder: string[], topicInfo: Record<string, any> | null, postTitle?: string, postDescription?: string, assistedRole?: string): PrivateAssistantTemplate {
   let tpl = replaceDefaults(assistantTemplate, loadAssistantTemplate(ASSISTANT_DEFAULT))
   tpl = substituteTokens(tpl, topicTokens(topicInfo))
   return {

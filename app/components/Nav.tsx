@@ -6,10 +6,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { runLeaveSaves } from '../lib/saveOnLeave'
 
 const NAV_ITEMS = [
-  { href: '/simulation', label: 'Simulation' },
-  { href: '/mediator', label: 'Mediator' },
+  { href: '/simulation', label: 'Simulation Environment' },
+  { href: '/public-assistant', label: 'Public Assistant' },
   { href: '/agent-participant', label: 'Agent Participant' },
-  { href: '/assistant', label: 'Agent Assistant' },
+  { href: '/private-assistant', label: 'Private Assistant' },
 ] as const
 
 export function Nav() {

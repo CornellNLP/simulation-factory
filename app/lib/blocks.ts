@@ -59,7 +59,7 @@ export type SimulationSummary = { id: string; name: string }
 // that finishes just after navigating would otherwise be missed. The window
 // event covers this tab; the BroadcastChannel covers other open tabs.
 const SIMULATION_SAVED_EVENT = 'simulation-saved'
-const SIMULATION_CHANNEL = 'mediator-toolkit:simulations'
+const SIMULATION_CHANNEL = 'public-assistant-toolkit:simulations'
 
 export function announceSimulationSaved() {
   window.dispatchEvent(new Event(SIMULATION_SAVED_EVENT))
@@ -83,7 +83,7 @@ function parseBlocks(content: string): Block[] {
 }
 
 /**
- * Reads the blocks of one saved simulation so the mediator and agent-participant
+ * Reads the blocks of one saved simulation so the public assistant and agent-participant
  * prompt editors can offer them under "Add item".
  *
  * Blocks live inside the simulation document rather than in a library of their
@@ -98,7 +98,7 @@ export function useSimulationBlocks() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [rawBlocks, setBlocks] = useState<Block[]>([])
   // The selected simulation as saved, for pages that run against it (the
-  // assistant toolkit takes its topic from here). Null until one has loaded.
+  // private assistant toolkit takes its topic from here). Null until one has loaded.
   const [content, setContent] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(false)
   // Whether the simulation list has come back yet, and which simulation the

@@ -7,7 +7,10 @@ async function verifyEmail(req: Request): Promise<string | null> {
   try {
     const decoded = await adminAuth.verifyIdToken(token)
     return decoded.email!
-  } catch {
+  } catch (e) {
+    // Says why the token was refused (wrong project, expired, emulator…),
+    // which the 401 the caller gets does not.
+    console.error('verifyIdToken failed:', e)
     return null
   }
 }

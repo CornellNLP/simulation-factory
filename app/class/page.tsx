@@ -24,7 +24,7 @@ export default function LandingPage() {
       if (!snap.exists()) {
         await setDoc(ref, { email, createdAt: new Date().toISOString() })
       }
-      router.push('/class/mediator')
+      router.push('/class/public-assistant')
     } catch (e: any) {
       setError(e.message ?? 'Sign in failed')
     }
@@ -35,7 +35,7 @@ export default function LandingPage() {
       <main className="flex-1 flex flex-col items-center justify-center px-8 py-12 text-center space-y-8">
         <div>
           <h1 className="text-5xl font-semibold tracking-tight max-w-4xl leading-tight">
-            Mediator Toolkit: Build and Test Civic Discourse Mediators
+            Public Assistant Toolkit: Build and Test Civic Discourse Public Assistants
           </h1>
         </div>
 
@@ -59,7 +59,7 @@ export default function LandingPage() {
           </p>
 
           <p className="text-base text-neutral-200">
-            Step 3.{' '} Sign in below to develop and submit your mediators.
+            Step 3.{' '} Sign in below to develop and submit your public assistants.
           </p>
 
           <div className="flex flex-col items-start gap-3">
@@ -89,7 +89,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-neutral-800 px-8 py-5 text-center text-xs text-neutral-600 space-y-1">
-        <p>Mediator Toolkit - TrAuSt</p>
+        <p>Public Assistant Toolkit - TrAuSt</p>
         <p>The toolkit builds in part on the ConvoKit and Deliberate Labs open source projects.</p>
       </footer>
     </div>

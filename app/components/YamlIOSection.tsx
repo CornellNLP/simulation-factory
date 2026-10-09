@@ -33,11 +33,15 @@ function CopyIcon() {
 
 const buttonClass = 'w-full flex items-center justify-center gap-2 text-md px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.98] transition-all duration-150 cursor-pointer'
 
-export function YamlIOSection({ label, filename, data, setData, downloadId, uploadId }: {
+export function YamlIOSection({ label, filename, data, setData, getDownloadText, onUploadFile, downloadId, uploadId }: {
   label: string
   filename: string
   data: string | null
   setData: (value: string) => void
+  /** Overrides the text written by Download (e.g. to sync state first). */
+  getDownloadText?: () => Promise<string> | string
+  /** Overrides the default upload handling, which just replaces `data`. */
+  onUploadFile?: (file: File) => void
   downloadId?: string
   uploadId?: string
 }) {
@@ -47,8 +51,8 @@ export function YamlIOSection({ label, filename, data, setData, downloadId, uplo
     try { return yaml.dump(JSON.parse(data ?? '')) } catch { return data ?? '' }
   }
 
-  function handleDownload() {
-    const text = toYamlText()
+  async function handleDownload() {
+    const text = getDownloadText ? await getDownloadText() : toYamlText()
     const url = URL.createObjectURL(new Blob([text], { type: 'text/yaml' }))
     const a = document.createElement('a')
     a.href = url
@@ -87,7 +91,7 @@ export function YamlIOSection({ label, filename, data, setData, downloadId, uplo
             type="file"
             accept=".yaml,.yml"
             className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = '' }}
+            onChange={e => { const f = e.target.files?.[0]; if (f) (onUploadFile ?? handleUpload)(f); e.target.value = '' }}
           />
         </label>
         <CopyButton

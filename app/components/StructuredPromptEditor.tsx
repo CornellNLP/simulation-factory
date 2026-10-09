@@ -154,7 +154,7 @@ export interface BiasedPromptItem extends PromptItem {
 
 // A block authored in the Simulation Toolkit's Block Customization panel. The
 // descriptions are copied in alongside the name so an exported template still
-// carries the text: a run launched from the mediator toolkit sends no
+// carries the text: a run launched from the public assistant toolkit sends no
 // simulation, so there is nothing to look the name up in.
 //
 // A block may offer several alternative descriptions, one of which is drawn at
@@ -217,7 +217,7 @@ function treeReorder(root: PromptItem[], targetArr: PromptItem[], from: number, 
 type AssistantMode = 'wp' | 'reddit' | 'simulation'
 
 // Display names for the participant blocks. The /assistant and Reddit editors
-// use the newer names; WP, the mediator and the agent editor keep the old ones.
+// use the newer names; WP, the public assistant and the agent editor keep the old ones.
 // Only the label changes — the stored item type stays the same everywhere.
 const RENAMED_LABELS: Partial<Record<string, string>> = {
   [PromptItemType.PARTICIPANT_INFO]: 'Profile Info',
