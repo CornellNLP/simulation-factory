@@ -11,9 +11,9 @@ export async function POST() {
   try {
     const chosen = TOPICS[Math.floor(Math.random() * TOPICS.length)]
     const experimentTemplatePath = path.join(process.cwd(), 'public', 'templates', 'topics', chosen, 'experiment.yaml')
-    const publicAssistantTemplate = fs.readFileSync( "public/templates/competition/mediator.yaml", 'utf8')
+    const mediatorTemplate = fs.readFileSync(path.join(process.cwd(), 'public', 'templates', 'artifact', 'mediator.yaml'), 'utf8')
 
-    const result = await generate('participant-1', 'participant-2', experimentTemplatePath, publicAssistantTemplate, 'human-agent')
+    const result = await generate('participant-1', 'participant-2', experimentTemplatePath, mediatorTemplate, 'human-agent')
     return Response.json(result, { headers: CORS_HEADERS })
   } catch (e) {
     console.error('Error in website-artifact:', e)
