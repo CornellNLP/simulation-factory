@@ -14,6 +14,7 @@ const RENAMED_PATHS: [string, string][] = [
 ];
 
 const nextConfig: NextConfig = {
+  basePath: '/simulation-factory',
   serverExternalPackages: ['firebase-admin'],
   async redirects() {
     return RENAMED_PATHS.map(([source, destination]) => ({ source, destination, permanent: true }));

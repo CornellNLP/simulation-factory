@@ -1,4 +1,3 @@
-import { CMV_RULES } from '../../../private-assistant-reddit/topics'
 import { blockDescriptions } from '../utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -188,14 +187,14 @@ export function buildPromptItems(tpl: Record<string, any>, stageId: string, stag
     } else if (kind === 'POST_DESCRIPTION') {
       items.push({ type: 'TEXT', text: `Description: ${postDescription ?? ''}` })
     } else if (kind === 'RULE') {
-      const rule = CMV_RULES.find(r => r.rule === promptItem.rule)
-      items.push({ type: 'TEXT', text: rule ? `Rule Title: ${rule.title}\nRule Description: ${rule.description}` : '' })
+      // The Reddit subreddit-rule item is no longer supported; an old template
+      // that still carries one runs without it rather than failing.
     } else if (kind === 'PARTICIPANT_ROLE') {
       items.push({ type: 'TEXT', text: `Role: ${assistedRole ?? ''}` })
     } else if (kind === 'ARTICLE_PAGE') {
       items.push({ type: 'TEXT', text: `${postTitle ?? ''}\n${postDescription ?? ''}` })
     } else {
-      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PARTICIPANT_PROFILES', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'PROMPT_OUTPUT', 'CHARACTER_CONTEXT', 'THOUGHT_HISTORY_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'RULE', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
+      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PARTICIPANT_PROFILES', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'PROMPT_OUTPUT', 'CHARACTER_CONTEXT', 'THOUGHT_HISTORY_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
     }
   }
   return [...items, ...stageSpecificPrompts]

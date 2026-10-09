@@ -23,7 +23,7 @@ export default function LandingPage() {
               className="group rounded-xl border border-neutral-800 bg-neutral-900/40 backdrop-blur-sm px-6 py-5 flex items-center justify-between gap-4 text-left hover:border-neutral-600 hover:bg-neutral-900/70 transition-all duration-150"
             >
               <span className="flex flex-col gap-0.5">
-                <span className="text-base font-semibold">Assistant WP Toolkit</span>
+                <span className="text-base font-semibold">Simulation Toolkit</span>
                 <span className="text-sm text-neutral-400">
                   Build and test assistants for Wikipedia
                 </span>
