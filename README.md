@@ -31,7 +31,7 @@ Firebase (Firestore + Auth) is used throughout for sign-in and for storing each 
 ## Prerequisites
 
 - Node.js 22+
-- A Firebase project (or the local emulators described below)
+- A Firebase project (or the local emulators described below) with **Authentication** (Google sign-in) and **Firestore** enabled. This app doesn't ship its own Firestore rules; it assumes the project uses [ConvoArena](https://github.com/CornellNLP/ConvoArena)'s [`firestore.rules`](https://github.com/CornellNLP/ConvoArena/blob/main/firestore/firestore.rules) (typically the same Firebase project ConvoArena runs on).
 - An API key for the TrAuSt / ConvoArena backend (`DL_API_KEY`)
 - Optionally, a running instance of `convokit-service` if you want to exercise corpus export locally
 
