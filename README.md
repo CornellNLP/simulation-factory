@@ -46,8 +46,14 @@ Firebase (Firestore + Auth) is used throughout for sign-in and for storing each 
    cp .env.example .env
    ```
    See [Environment variables](#environment-variables) below for what each one does.
-3. If you have a sibling checkout of the `TrAuSt` repo, `npm run dev` will automatically sync `DL_API_KEY` from `../TrAuSt/.env` into this project's `.env` via `scripts/sync-dl-key.mjs` (override the source path with `DL_ENV_PATH`). This is purely a convenience — if you set `DL_API_KEY` manually in `.env`, you can ignore it; the sync step warns but does not fail if the sibling repo isn't present.
-4. Optionally, run the Firebase emulators for local development instead of a live Firebase project (configured in `firebase.json`: Firestore on port 8080, Auth on port 9099). Which backend URLs the app calls is controlled by `NODE_ENV` in `app/api/create-experiment/config.ts`.
+3. Create the two per-deployment config files from their examples and fill in your Firebase project's values (both files are gitignored):
+   ```bash
+   cp app/lib/firebase.example.ts app/lib/firebase.ts
+   cp app/api/create-experiment/config.example.ts app/api/create-experiment/config.ts
+   ```
+   `FIREBASE_SERVICE_ACCOUNT` in `.env` must be for the same project as `app/lib/firebase.ts`; the server refuses to start otherwise.
+4. If you have a sibling checkout of the `TrAuSt` repo, `npm run dev` will automatically sync `DL_API_KEY` from `../TrAuSt/.env` into this project's `.env` via `scripts/sync-dl-key.mjs` (override the source path with `DL_ENV_PATH`). This is purely a convenience — if you set `DL_API_KEY` manually in `.env`, you can ignore it; the sync step warns but does not fail if the sibling repo isn't present.
+5. Optionally, run the Firebase emulators for local development instead of a live Firebase project (configured in `firebase.json`: Firestore on port 8080, Auth on port 9099). Which backend URLs the app calls is controlled by `NODE_ENV` in `app/api/create-experiment/config.ts`.
 
 ## Running locally
 

@@ -295,3 +295,7 @@ notebook/
 output/
 
 screenshot/
+
+# per-deployment config; copy the *.example.ts next to each and fill in
+app/lib/firebase.ts
+app/api/create-experiment/config.ts

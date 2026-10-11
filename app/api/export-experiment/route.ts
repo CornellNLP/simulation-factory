@@ -1,5 +1,5 @@
 import {resolveDlApiKey} from '../dl-key'
-const BASE_URL = 'https://us-central1-traust-491612.cloudfunctions.net/api/v1'
+import {BASE_URL} from '../create-experiment/config'
 
 export async function GET(request: Request) {
   const apiKey = resolveDlApiKey()
