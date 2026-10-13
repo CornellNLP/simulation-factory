@@ -38,7 +38,8 @@ def generate(prompt, model=JUDGE_MODEL, retries=3):
     for attempt in range(retries):
         try:
             return (client.models.generate_content(model=model, contents=prompt, config=config).text or "").strip()
-        except Exception:
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed with error: {e}")
             if attempt == retries - 1:
                 raise
             time.sleep(2 ** attempt)
