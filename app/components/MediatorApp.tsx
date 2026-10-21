@@ -295,8 +295,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
         return
       }
       const {scores, zip} = await res.json()
-      const blob = new Blob([Uint8Array.from(atob(zip), c => c.charCodeAt(0))], { type: 'application/zip' })
-      const url = URL.createObjectURL(blob)
+      // const blob = new Blob([Uint8Array.from(atob(zip), c => c.charCodeAt(0))], { type: 'application/zip' })
+      // const url = URL.createObjectURL(blob)
 
       if (scores){
         const rows = Object.values(scores) as { bias_label: string; bias_level: number | null; stance_movement: number }[]
@@ -316,16 +316,18 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             }
           }
         })
+      } else{
+        alert('No scores available currently, please try again later.')
       }
 
       // const blob = await res.blob()
       // const url = URL.createObjectURL(blob)
       
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `convokit-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.zip`
-      a.click()
-      URL.revokeObjectURL(url)
+      // const a = document.createElement('a')
+      // a.href = url
+      // a.download = `convokit-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.zip`
+      // a.click()
+      // URL.revokeObjectURL(url)
     } catch (e) {
       alert(`ConvoKit conversion error: ${String(e)}`)
     } finally {
@@ -787,19 +789,19 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               onClick={() => downloadJson(simExport, `simulation-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.json`)}
             /> */}
             <ActionButton
-              label="Download ConvoKit corpus (zip)"
-              loadingLabel="Converting…"
+              label="Check Simulation Scores"
+              loadingLabel="Computing…"
               loading={convokitLoading}
               onClick={downloadConvokit}
             />
-            <a
+            {/* <a
               href="https://colab.research.google.com/drive/1Mw1DNmqr5XDCPnH9zXZDVY0cM_-HZnlr#scrollTo=sQZqO5iVkTlU"
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full px-5 py-2.5 rounded-lg border border-neutral-700 bg-neutral-900 text-base font-medium text-neutral-200 hover:bg-neutral-800 hover:border-neutral-600 active:scale-[0.98] transition-all duration-150 text-center cursor-pointer"
             >
               Notebook to analyze the data
-            </a>
+            </a> */}
           </div>
         )}
 
