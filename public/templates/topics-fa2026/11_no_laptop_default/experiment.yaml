@@ -1,0 +1,7 @@
+topic:
+  name: "No-Laptop Default in Classes"
+  statement: I support the default policy across classes at Cornell being no-laptops.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "no-laptops not being the default policy"
+  favor_agree: "no-laptops being the default policy"

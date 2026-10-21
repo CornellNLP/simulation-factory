@@ -1,0 +1,7 @@
+topic:
+  name: "One-Year Pause on AI Development"
+  statement: I support a one-year ban on AI companies developing more sophisticated models until we have better guardrails and cybersecurity defenses.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "Not banned from developing"
+  favor_agree: "Banned from developing"

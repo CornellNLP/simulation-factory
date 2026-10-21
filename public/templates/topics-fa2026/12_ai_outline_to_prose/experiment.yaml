@@ -1,0 +1,7 @@
+topic:
+  name: "AI-Written Prose from Student Outlines"
+  statement: I support allowing Cornell students to write an outline and have AI turn it into prose for class assignments.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "Not allowed to have AI turn their outlines into prose"
+  favor_agree: "Allowed to have AI turn their outlines into prose"

@@ -1,0 +1,7 @@
+topic:
+  name: "Synthetic Images of Real People"
+  statement: I support making it illegal to create synthetic images of any real person.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "Not being illegal"
+  favor_agree: "Being illegal"

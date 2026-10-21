@@ -1,0 +1,7 @@
+topic:
+  name: "Paying Accounts for AI-Generated Content"
+  statement: I support social media companies not paying accounts for AI-generated content.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "Paying accounts for AI-generated content"
+  favor_agree: "Not paying accounts for AI-generated content"

@@ -1,0 +1,7 @@
+topic:
+  name: "Data Center Construction Moratorium"
+  statement: I support a one-year moratorium on data center construction in New York State.
+  scale_low: "Strongly disagree"
+  scale_high: "Strongly agree"
+  favor_disagree: "No moratorium on data center construction"
+  favor_agree: "A one-year moratorium on data center construction"
