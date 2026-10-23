@@ -22,7 +22,7 @@ import { TOPIC_SETS } from '../lib/topicSets'
 const idle: ActionState = { status: 'idle', result: null }
 
 const WORKED_EXAMPLES_URL =
-  'https://docs.google.com/document/d/1tX9w_9RFuES2jxlGTDY2lXpRenc354hjzYMeH8LzngU/edit?tab=t.uulhszxtacl9'
+  'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
 
 function WorkedExamplesLink() {
   return (
@@ -527,7 +527,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
           />
 
           <div className="flex items-center justify-end gap-2">
-            <select
+            {/* <select
                 id="tour-submit"
                 defaultValue=""
                 onChange={e => {
@@ -540,7 +540,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 <option value="" disabled>Submit…</option>
                 <option value="track1">Track 1</option>
                 <option value="track2">Track 2</option>
-            </select>
+            </select> */}
           </div>
 
           {/* Mediator configuration and prompt editors */}
@@ -793,6 +793,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               loadingLabel="Computing…"
               loading={convokitLoading}
               onClick={downloadConvokit}
+              disabled={((simState.result as { message?: string })?.message ?? '').includes('Our covertness judge')}
             />
             {/* <a
               href="https://colab.research.google.com/drive/1Mw1DNmqr5XDCPnH9zXZDVY0cM_-HZnlr#scrollTo=sQZqO5iVkTlU"
