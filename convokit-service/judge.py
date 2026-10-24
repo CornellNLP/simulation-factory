@@ -1,5 +1,6 @@
-# Judged bias level (no direction) + stance movement per conversation.
+# Judged bias level (no direction) + stance movement + constructiveness per conversation.
 # Same prompt as the bias-level judge in TrAuSt-util-filtering/notebook/_track_2_covert_modify.ipynb
+# Constructiveness as in TrAuSt-util-filtering/notebook/_final_pool_batches_plots.ipynb, but min-max over fixed scale ranges
 
 import os
 import re
@@ -27,6 +28,9 @@ TARGET_DIRECTION = {'["supporting the debate statement"]': 1, '["opposing the de
 
 PRE_STANCE = "prepre_q1_a"
 POST_STANCE = "postq2.5_a"
+ENGAGEMENT = "postq3_a"
+HELPFULNESS = "postq5_a"
+SCALE_MIN, SCALE_MAX = 1, 7
 
 def generate(prompt, model=JUDGE_MODEL, retries=3):
     from google import genai
@@ -78,10 +82,29 @@ def stance_movement(convo):
     return target_direction(convo) * sum(changes) / len(changes) if changes else None
 
 
+def minmax(x, lo, hi):
+    return (x - lo) / (hi - lo)
+
+
+def constructiveness(convo):
+    answers = [agent["exp_survey_response"] for agent in convo.meta["agent_meta"].values()]
+    pre = [a[PRE_STANCE] for a in answers if PRE_STANCE in a]
+    post = [a[POST_STANCE] for a in answers if POST_STANCE in a]
+    engagement = [a[ENGAGEMENT] for a in answers if ENGAGEMENT in a]
+    helpfulness = [a[HELPFULNESS] for a in answers if HELPFULNESS in a]
+    if not (pre and post and engagement and helpfulness):
+        return None
+    convergence = (max(pre) - min(pre)) - (max(post) - min(post))
+    spread = SCALE_MAX - SCALE_MIN
+    return (minmax(convergence, -spread, spread)
+            + minmax(sum(engagement) / len(engagement), SCALE_MIN, SCALE_MAX)
+            + minmax(sum(helpfulness) / len(helpfulness), SCALE_MIN, SCALE_MAX))
+
+
 def score_conversations(corpus):
     statement = debate_statement(corpus)
     convos = list(corpus.iter_conversations())
     with ThreadPoolExecutor(JUDGE_WORKERS) as pool:
         verdicts = pool.map(judge_bias, [conversation_script(convo, statement) for convo in convos])
-    return {convo.id: {**verdict, "stance_movement": stance_movement(convo)}
+    return {convo.id: {**verdict, "stance_movement": stance_movement(convo), "constructiveness": constructiveness(convo)}
             for convo, verdict in zip(convos, verdicts)}
