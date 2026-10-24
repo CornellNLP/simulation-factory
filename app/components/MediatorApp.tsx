@@ -20,6 +20,7 @@ import { text } from 'stream/consumers'
 import { TOPIC_SETS } from '../lib/topicSets'
 
 const idle: ActionState = { status: 'idle', result: null }
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 
 const WORKED_EXAMPLES_URL =
   'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
@@ -164,6 +165,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [simExport, setSimExport] = useState<unknown>(null)
   const simPollRef = useRef<((countPolls: number) => Promise<void>) | null>(null)
   const [convokitLoading, setConvokitLoading] = useState(false)
+  const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
   const [numCohorts, setNumCohorts] = useState('5')
   const [numUtterances, setNumUtterances] = useState('15')
@@ -280,8 +282,9 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     URL.revokeObjectURL(url)
   }
 
-  async function downloadConvokit() {
-    if (simExport === null) return
+  async function fetchScores() {
+    if (scores) return scores
+    if (simExport === null) return null
     setConvokitLoading(true)
     try {
       const res = await fetch(`${API_BASE}/api/convokit`, {
@@ -292,47 +295,52 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         alert(`ConvoKit conversion failed: ${err.error ?? res.statusText}`)
-        return
+        return null
       }
-      const {scores, zip} = await res.json()
-      // const blob = new Blob([Uint8Array.from(atob(zip), c => c.charCodeAt(0))], { type: 'application/zip' })
-      // const url = URL.createObjectURL(blob)
-
-      if (scores){
-        const rows = Object.values(scores) as { bias_label: string; bias_level: number | null; stance_movement: number }[]
-        const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
-        const levels = rows.map(r => r.bias_level).filter((x): x is number => x !== null)  // skips -1 insufficient
-        const medium = rows.filter(r => r.bias_label === 'medium').length
-        const high = rows.filter(r => r.bias_label === 'high').length
-
-        setSimState(prev => {
-          const result = prev.result as { message?: string }
-          return {
-            ...prev, result: {
-              ...result, message:
-                `${(result.message ?? '').split('.\n\nOur covertness judge')[0]}.\n\nOur covertness judge identified bias in ${medium + high} of ${rows.length} discussions (${medium} medium, ${high} high). ` +
-                `Average bias score: ${mean(levels).toFixed(2)} (0 - 1, higher more biased). ` +
-                `On average, participants moved ${mean(rows.map(r => r.stance_movement)).toFixed(2)} points toward the target position.`
-            }
-          }
-        })
-      } else{
+      const data = await res.json()
+      if (!data.scores) {
         alert('No scores available currently, please try again later.')
+        return null
       }
-
-      // const blob = await res.blob()
-      // const url = URL.createObjectURL(blob)
-      
-      // const a = document.createElement('a')
-      // a.href = url
-      // a.download = `convokit-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.zip`
-      // a.click()
-      // URL.revokeObjectURL(url)
+      const rows = Object.values(data.scores) as NonNullable<typeof scores>
+      setScores(rows)
+      return rows
     } catch (e) {
       alert(`ConvoKit conversion error: ${String(e)}`)
+      return null
     } finally {
       setConvokitLoading(false)
     }
+  }
+
+  function addToSimMessage(text: string) {
+    setSimState(prev => {
+      const result = prev.result as { message?: string }
+      return { ...prev, result: { ...result, message: `${result.message ?? ''}\n\n${text}` } }
+    })
+  }
+
+  async function showConstructiveness() {
+    const rows = await fetchScores()
+    if (!rows) return
+    const values = rows.map(r => r.constructiveness).filter((x): x is number => x !== null)
+    addToSimMessage(`Average constructiveness: ${mean(values).toFixed(2)} (0 - 3, higher more constructive).` + 
+      `\nAim for higher constructiveness!`)
+  }
+
+  async function showBiasScores() {
+    const rows = await fetchScores()
+    if (!rows) return
+    const levels = rows.map(r => r.bias_level).filter((x): x is number => x !== null)  // skips -1 insufficient
+    const movement = rows.map(r => r.stance_movement).filter((x): x is number => x !== null)
+    const medium = rows.filter(r => r.bias_label === 'medium').length
+    const high = rows.filter(r => r.bias_label === 'high').length
+    addToSimMessage(
+      // `Our covertness judge identified bias in ${medium + high} of ${rows.length} discussions (${medium} medium, ${high} high). ` +
+      `Our covertness judge identified bias in ${medium + high} of ${rows.length} discussions. ` +
+      `Average bias score: ${mean(levels).toFixed(2)} (0 - 1, higher more biased). ` +
+      `On average, participants moved ${mean(movement).toFixed(2)} points toward the target position.` +
+      `\nAim for lower bias and higher stance movement!`)
   }
 
   async function handleCreate(mode: 'human-human' | 'human-agent' | 'agent-agent', action: 'create' | 'simulate' = 'create') {
@@ -445,6 +453,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     setExperimentId(experimentId)
 
     setSimExport(null)
+    setScores(null)
     setSimState({ status: 'loading', result: { message: 'Simulation running — waiting for agents to finish' } })
 
     setSimStartTime(Date.now())
@@ -789,10 +798,17 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               onClick={() => downloadJson(simExport, `simulation-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.json`)}
             /> */}
             <ActionButton
-              label="Check Simulation Scores"
+              label="Check Constructiveness (Task 1)"
               loadingLabel="Computing…"
               loading={convokitLoading}
-              onClick={downloadConvokit}
+              onClick={showConstructiveness}
+              disabled={((simState.result as { message?: string })?.message ?? '').includes('Average constructiveness')}
+            />
+            <ActionButton
+              label="Check Bias Scores (Task 2)"
+              loadingLabel="Computing…"
+              loading={convokitLoading}
+              onClick={showBiasScores}
               disabled={((simState.result as { message?: string })?.message ?? '').includes('Our covertness judge')}
             />
             {/* <a
