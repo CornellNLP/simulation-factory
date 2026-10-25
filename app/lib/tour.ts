@@ -17,7 +17,7 @@ export function startTour() {
             { element: '#tour-template-download', popover: { title: 'Export your Mediator', description: 'You will need this to submit it to the competition.' } },
             // { element: '#tour-template-upload', popover: { title: 'Import your Mediator', description: 'Use this to upload a previously exported mediator template.' } },
             { element: '#tour-create', popover: { title: 'Test your mediators', description: 'You can test your mediator and see how the participants will experience it during the discussion. You can test it in a discussion between you and a friend, with an agent, or by seeing how two agents discuss with each other.' } },
-            { element: '#tour-simulate', popover: { title: 'Simulate', description: 'You can optionally run multiple discussions with agents to see how your Mediator behaves across multiple scenarios.  We provide a notebook to help you look at the results.  (Note that the simulations are resource-intensive, so they will take some time to run and there is a limit of how many you can run each day.)' } },
+            { element: '#tour-simulate', popover: { title: 'Simulate', description: 'You can optionally run multiple discussions with agents to see how your Mediator behaves across multiple scenarios.  You can compute a score for each task to help you understand the results.  (Note that the simulations are resource-intensive, so they will take some time to run and there is a limit of how many you can run each day.)' } },
             { element: '#tour-show', popover: { title: 'Tour', description: 'Click here to show the tour again.' } },
         ],
     }).drive()
