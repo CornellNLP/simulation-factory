@@ -92,7 +92,6 @@ const SUBMISSION_FORMS = {
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
-
 export default function MediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
@@ -690,26 +689,25 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
         {/* Actions: create buttons, then experiment id + export */}
         <div className="space-y-3">
-          <div className="space-y-3" id="tour-create">
+          {/* <div className="space-y-3" id="tour-create">
             <div className="border-b border-neutral-800 pb-3 mb-3">
               <h2 className="text-lg font-semibold tracking-tight">Mediator Testing</h2>
             </div>
-            {/* create buttons on one row */}
             <div className="space-y-3">
-              {/* <ActionButton
+              <ActionButton
                 label="Create (human-agent)"
                 loadingLabel="Creating…"
                 loading={creating === 'human-agent'}
                 disabled={busy}
                 onClick={() => handleCreate('human-agent')}
-              /> */}
-              {/* <ActionButton
+              />
+              <ActionButton
                 label="Create (human-human)"
                 loadingLabel="Creating…"
                 loading={creating === 'human-human'}
                 disabled={busy}
                 onClick={() => handleCreate('human-human')}
-              /> */}
+              />
               <ActionButton
                 label="Create"
                 loadingLabel="Creating…"
@@ -720,7 +718,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             </div>
           </div>
 
-          {/* Action results */}
           {createState.result !== null && (
             <ResultBox
               title="Create"
@@ -731,7 +728,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   : undefined
               }
             />
-          )}
+          )} */}
 
           <div className="space-y-3" id="tour-simulate">
             <div className="border-b border-neutral-800 pb-3 mb-3 mt-6 flex items-center justify-between">
