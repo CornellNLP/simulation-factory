@@ -10,7 +10,7 @@ import { TOPICS } from '../lib/topics'
 import { ApiKeyType, API_KEY_TYPE_LABELS, REASONING_LEVEL_OPTIONS } from '../lib/types'
 import { StructuredPromptEditor, PromptItemType, type PromptItem, type TextPromptItem } from '../components/StructuredPromptEditor'
 import { MediatorSection } from '../components/MediatorSection'
-import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
+import { ActionButton, ResultBox, type ActionState, type Note } from '../components/ExperimentActions'
 import { SaveSection } from './SaveSection'
 import { YamlIOSection } from './YamlIOSection'
 import { create } from 'domain'
@@ -159,7 +159,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [exportState, setExportState] = useState<ActionState>(idle)
   const [createState, setCreateState] = useState<ActionState>(idle)
   const [simState, setSimState] = useState<ActionState>(idle)
-  const [similarityNote, setSimilarityNote] = useState('')
+  const [similarityNote, setSimilarityNote] = useState<Note | null>(null)
+  const [scoreNotes, setScoreNotes] = useState<Note[]>([])
   const [simStartTime, setSimStartTime] = useState<number | null>(null)
   const [simElapsed, setSimElapsed] = useState(0)
   const [createAction, setCreateAction] = useState<'create' | 'simulate' | null>(null)
@@ -314,18 +315,15 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     }
   }
 
-  function addToSimMessage(text: string) {
-    setSimState(prev => {
-      const result = prev.result as { message?: string }
-      return { ...prev, result: { ...result, message: `${result.message ?? ''}\n\n${text}` } }
-    })
+  function addScoreNote(text: string, tone: Note['tone'] = 'score') {
+    setScoreNotes(prev => [...prev, { text, tone }])
   }
 
   async function showConstructiveness() {
     const rows = await fetchScores('track1')
     if (!rows) return
     const values = rows.map(r => r.constructiveness).filter((x): x is number => x !== null)
-    addToSimMessage(
+    addScoreNote(
       `Task 1: Constructive Mediator` +
       `\nAverage constructiveness: ${mean(values).toFixed(2)}` + 
       `\nThe goal is to have a higher constructiveness score!` + 
@@ -338,8 +336,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   async function showBiasScores() {
     const hasTarget = ((mediatorParsed?.prompt as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED)
     if (!hasTarget) {
-      addToSimMessage(`Task 2: Covert Mediator` +
-        `\nWarning: your Intervention Prompt has no Target Position block. This is mandatory for Task 2. Please fix your prompt and run simulation again.`)
+      addScoreNote(`Task 2: Covert Mediator` +
+        `\nWarning: your Intervention Prompt has no Target Position block. This is mandatory for Task 2. Please fix your prompt and run simulation again.`, 'warn')
       return
     }
     const rows = await fetchScores('track2')
@@ -348,7 +346,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     const movement = rows.map(r => r.stance_movement).filter((x): x is number => x !== null)
     const medium = rows.filter(r => r.bias_label === 'medium').length
     const high = rows.filter(r => r.bias_label === 'high').length
-    addToSimMessage(
+    addScoreNote(
       `Task 2: Covert Mediator` +
       `\nThis is the 2nd part of the study. Please do not use this score if you are on task 1.` + 
       `\nOur judge identified bias in ${medium + high} of ${rows.length} discussions. ` +
@@ -467,10 +465,13 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   // sent to simulation + polling its status
   async function handleCreateSim() {
     const similarity = templateSimilarity(mediatorParsed ?? {}, JSON.parse(await getDefaultContent()))
-    setSimilarityNote(`Similarity between your current template and default: ${similarity.toFixed(2)} (threshold ${SIMILARITY_THRESHOLD}, you need to stay below this)` +
-      (similarity > SIMILARITY_THRESHOLD
-        ? `\nWarning: your template is too similar to the default. Please make more substantial changes by adding more blocks and text.`
-        : `\nGreat work! Your template is sufficiently different from the default template.`))
+    setSimilarityNote({
+      tone: similarity > SIMILARITY_THRESHOLD ? 'warn' : 'ok',
+      text: `Similarity between your current template and default: ${similarity.toFixed(2)} (threshold ${SIMILARITY_THRESHOLD}, you need to stay below this).` +
+        (similarity > SIMILARITY_THRESHOLD
+          ? `\nWarning: your template is too similar to the default. Please make more substantial changes by adding more blocks and text.`
+          : `\nGreat work! Your template is sufficiently different from the default template.`),
+    })
     const data = await handleCreate('agent-agent', 'simulate')
     const experimentId: string | undefined = data?.experiment_id
     if (!experimentId) return
@@ -478,6 +479,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
     setSimExport(null)
     setScores(null)
+    setScoreNotes([])
     setSimState({ status: 'loading', result: { message: 'Simulation running — waiting for agents to finish' } })
 
     setSimStartTime(Date.now())
@@ -808,11 +810,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
         </div>
 
         {simState.result !== null && (
-          <ResultBox title="Simulation" showMessage state={
-            similarityNote && simState.result && typeof simState.result === 'object'
-              ? { ...simState, result: { ...simState.result, message: `${similarityNote}\n\n${(simState.result as { message?: string }).message ?? ''}` } }
-              : simState
-          } />
+          <ResultBox title="Simulation" state={simState} showMessage note={similarityNote ?? undefined} scoreNotes={scoreNotes} />
         )}
 
         {simState.status === 'done' && simExport !== null && (
@@ -830,7 +828,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 loadingLabel="Computing…"
                 loading={computing === 'track1'}
                 onClick={showConstructiveness}
-                disabled={computing === 'track2' || ((simState.result as { message?: string })?.message ?? '').includes('Average constructiveness')}
+                disabled={computing === 'track2' || scoreNotes.some(n => n.text.includes('Average constructiveness'))}
               />
             </div>
             <div className="w-full">
@@ -840,7 +838,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 loadingLabel="Computing…"
                 loading={computing === 'track2'}
                 onClick={showBiasScores}
-                disabled={computing === 'track1' || ((simState.result as { message?: string })?.message ?? '').includes('Task 2: Covert Mediator')}
+                disabled={computing === 'track1' || scoreNotes.some(n => n.text.includes('Task 2: Covert Mediator'))}
               />
             </div>
             {/* <a
