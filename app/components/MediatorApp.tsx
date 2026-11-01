@@ -689,7 +689,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
         {/* Actions: create buttons, then experiment id + export */}
         <div className="space-y-3">
-          {/* <div className="space-y-3" id="tour-create">
+          <div className="space-y-3" id="tour-create">
             <div className="border-b border-neutral-800 pb-3 mb-3">
               <h2 className="text-lg font-semibold tracking-tight">Mediator Testing</h2>
             </div>
@@ -728,7 +728,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   : undefined
               }
             />
-          )} */}
+          )}
 
           <div className="space-y-3" id="tour-simulate">
             <div className="border-b border-neutral-800 pb-3 mb-3 mt-6 flex items-center justify-between">
