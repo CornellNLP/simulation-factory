@@ -18,6 +18,7 @@ import { StructuredOutputSchema, type StructuredOutputConfig } from '../componen
 import { startTour } from '../lib/tour'
 import { text } from 'stream/consumers'
 import { TOPIC_SETS } from '../lib/topicSets'
+import { templateSimilarity, SIMILARITY_THRESHOLD } from '../lib/similarity'
 
 const idle: ActionState = { status: 'idle', result: null }
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
@@ -158,6 +159,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [exportState, setExportState] = useState<ActionState>(idle)
   const [createState, setCreateState] = useState<ActionState>(idle)
   const [simState, setSimState] = useState<ActionState>(idle)
+  const [similarityNote, setSimilarityNote] = useState('')
   const [simStartTime, setSimStartTime] = useState<number | null>(null)
   const [simElapsed, setSimElapsed] = useState(0)
   const [createAction, setCreateAction] = useState<'create' | 'simulate' | null>(null)
@@ -464,6 +466,11 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
   // sent to simulation + polling its status
   async function handleCreateSim() {
+    const similarity = templateSimilarity(mediatorParsed ?? {}, JSON.parse(await getDefaultContent()))
+    setSimilarityNote(`Similarity between your current template and default: ${similarity.toFixed(2)} (threshold ${SIMILARITY_THRESHOLD}, you need to stay below this)` +
+      (similarity > SIMILARITY_THRESHOLD
+        ? `\nWarning: your template is too similar to the default. Please make more substantial changes by adding more blocks and text.`
+        : `\nGreat work! Your template is sufficiently different from the default template.`))
     const data = await handleCreate('agent-agent', 'simulate')
     const experimentId: string | undefined = data?.experiment_id
     if (!experimentId) return
@@ -801,7 +808,11 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
         </div>
 
         {simState.result !== null && (
-          <ResultBox title="Simulation" state={simState} showMessage />
+          <ResultBox title="Simulation" showMessage state={
+            similarityNote && simState.result && typeof simState.result === 'object'
+              ? { ...simState, result: { ...simState.result, message: `${similarityNote}\n\n${(simState.result as { message?: string }).message ?? ''}` } }
+              : simState
+          } />
         )}
 
         {simState.status === 'done' && simExport !== null && (
