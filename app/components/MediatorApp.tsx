@@ -716,7 +716,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 onClick={() => handleCreate('human-human')}
               />
               <ActionButton
-                label="Create"
+                label="Create (agent-agent)"
                 loadingLabel="Creating…"
                 loading={creating === 'agent-agent' && createAction === 'create'}
                 disabled={busy}
