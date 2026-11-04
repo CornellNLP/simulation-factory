@@ -336,7 +336,8 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     const values = rows.map(r => r.constructiveness).filter((x): x is number => x !== null)
     addScoreNote(
       `Task 1: Constructive Mediator` +
-      `\nAverage constructiveness: ${mean(values).toFixed(2)}` + 
+      `\nAverage constructiveness: ${mean(values).toFixed(2)}` +
+      `\n- Target: above 2.5 (i.e., a highly constructive mediator).` +
       `\nThe goal is to have a higher constructiveness score!` + 
       `\n\nReminder:` + 
       `\n- Scores are on a scale of 0 to 3.` +
