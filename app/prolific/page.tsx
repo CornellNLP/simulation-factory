@@ -72,7 +72,7 @@ export default function LandingPage() {
             {error && <p className="text-sm text-red-400">{error}</p>}
           </div>
 
-          <div className="space-y-3">
+          {/* <div className="space-y-3">
             <p className="text-sm text-neutral-300">
               A brief video introducing the toolkit:
             </p>
@@ -84,7 +84,7 @@ export default function LandingPage() {
                 allowFullScreen
               />
             </div>
-          </div>
+          </div> */}
         </div>
       </main>
 
