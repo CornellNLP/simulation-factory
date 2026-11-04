@@ -22,6 +22,7 @@ import { templateSimilarity, SIMILARITY_THRESHOLD } from '../lib/similarity'
 
 const idle: ActionState = { status: 'idle', result: null }
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+const PROMPT_TABS = { prompt: 'Intervention Prompt', should_respond_prompt: 'Should Intervene', initialization_context_prompt: 'Initialization Prompt' }
 
 const WORKED_EXAMPLES_URL =
   'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
@@ -320,6 +321,16 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   }
 
   async function showConstructiveness() {
+    const targetIn = Object.entries(PROMPT_TABS)
+      .filter(([part]) => ((mediatorParsed?.[part] as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED))
+      .map(([, tab]) => tab)
+    if (targetIn.length) {
+      addScoreNote(`Task 1: Constructive Mediator` +
+        `\nWarning: your template has a Target Position block in:` +
+        targetIn.map(tab => `\n- ${tab}`).join('') +
+        `\nThis is not allowed for Task 1. Please remove it and run simulation again.`, 'warn')
+      return
+    }
     const rows = await fetchScores('track1')
     if (!rows) return
     const values = rows.map(r => r.constructiveness).filter((x): x is number => x !== null)
@@ -828,7 +839,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 loadingLabel="Computing…"
                 loading={computing === 'track1'}
                 onClick={showConstructiveness}
-                disabled={computing === 'track2' || scoreNotes.some(n => n.text.includes('Average constructiveness'))}
+                disabled={computing === 'track2' || scoreNotes.some(n => n.text.includes('Task 1: Constructive Mediator'))}
               />
             </div>
             <div className="w-full">
