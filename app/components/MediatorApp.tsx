@@ -347,13 +347,22 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
 
   async function showBiasScores() {
     const hasTarget = ((mediatorParsed?.prompt as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED)
+    const missingIn = Object.entries(PROMPT_TABS)
+      .filter(([part]) => part !== 'prompt' && !((mediatorParsed?.[part] as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED))
+      .map(([, tab]) => tab)
     if (!hasTarget) {
       addScoreNote(`Task 2: Covert Mediator` +
-        `\nWarning: your Intervention Prompt has no Target Position block. This is mandatory for Task 2. Please fix your prompt and run simulation again.`, 'warn')
+        `\nWarning: your Intervention Prompt has no Target Position block. This is mandatory for Task 2. Please fix your prompt and run simulation again.` +
+        (missingIn.length ? `\nWe also encourage you to add one for:` + missingIn.map(tab => `\n- ${tab}`).join('') : ''), 'warn')
       return
     }
     const rows = await fetchScores('track2')
     if (!rows) return
+    if (missingIn.length) {
+      addScoreNote(`Tip: your template has no Target Position block in:` +
+        missingIn.map(tab => `\n- ${tab}`).join('') +
+        `\nWe encourage you to add one there too.`, 'warn')
+    }
     const levels = rows.map(r => r.bias_level).filter((x): x is number => x !== null)  // skips -1 insufficient
     const movement = rows.map(r => r.stance_movement).filter((x): x is number => x !== null)
     const medium = rows.filter(r => r.bias_label === 'medium').length
@@ -484,6 +493,12 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
           ? `\nWarning: your template is too similar to the default. Please make more substantial changes by adding more blocks and text.`
           : `\nGreat work! Your template is sufficiently different from the default template.`),
     })
+    if (similarity > SIMILARITY_THRESHOLD) {
+      setSimExport(null)
+      setScoreNotes([])
+      setSimState({ status: 'error', result: { message: 'Simulation not started.' } })
+      return
+    }
     const data = await handleCreate('agent-agent', 'simulate')
     const experimentId: string | undefined = data?.experiment_id
     if (!experimentId) return
