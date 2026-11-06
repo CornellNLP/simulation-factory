@@ -7,7 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
 const INSTRUCTION_URL = 'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
-const VIDEO_URL = 'https://drive.google.com/file/d/1ELPMxibpd6Fm9m254UIjp1HoSAnNpJHD/preview'
+const VIDEO_URL = 'https://drive.google.com/file/d/1joLmINUkYzVVBY49rqB1pUIJgacDCxzU/preview'
 const CONSENT_FORM_URL = 'https://cornell.ca1.qualtrics.com/jfe/form/SV_afLclmWLfLJL37M'
 
 export default function LandingPage() {
@@ -72,7 +72,7 @@ export default function LandingPage() {
             {error && <p className="text-sm text-red-400">{error}</p>}
           </div>
 
-          {/* <div className="space-y-3">
+          <div className="space-y-3">
             <p className="text-sm text-neutral-300">
               A brief video introducing the toolkit:
             </p>
@@ -84,7 +84,7 @@ export default function LandingPage() {
                 allowFullScreen
               />
             </div>
-          </div> */}
+          </div>
         </div>
       </main>
 
