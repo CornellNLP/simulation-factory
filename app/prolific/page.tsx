@@ -7,7 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
 const INSTRUCTION_URL = 'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
-const VIDEO_URL = 'https://drive.google.com/file/d/1joLmINUkYzVVBY49rqB1pUIJgacDCxzU/preview'
+const VIDEO_URL = 'https://drive.google.com/file/d/1iaU3MM8l6xwqC8P1nugbSSxH3twZPrZ1/preview'
 const CONSENT_FORM_URL = 'https://cornell.ca1.qualtrics.com/jfe/form/SV_afLclmWLfLJL37M'
 
 export default function LandingPage() {
