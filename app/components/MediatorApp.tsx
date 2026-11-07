@@ -26,6 +26,8 @@ const PROMPT_TABS = { prompt: 'Intervention Prompt', should_respond_prompt: 'Sho
 
 const WORKED_EXAMPLES_URL =
   'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
+const TUTORIAL_URL =
+  'https://docs.google.com/document/d/1qiwlEeQyfsgHHPFlnB4Vortb32z0qWM-SMvtHlEYJ14/edit?usp=sharing'
 
 function WorkedExamplesLink() {
   return (
@@ -574,6 +576,15 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   className="w-full h-full"
                   allow="autoplay; fullscreen"
                 />
+              </div>
+            )}
+            {showTutorial && variant === 'prolific' && (
+              <div className="border-t border-blue-400/30 px-4 py-3 space-y-1">
+                <p className="font-medium">Prefer reading the instructions?</p>
+                <p>If you prefer reading instead of watching the video, you can access the complete written tutorial below.</p>
+                <a href={TUTORIAL_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-blue-100">
+                  Tutorial
+                </a>
               </div>
             )}
           </div>
