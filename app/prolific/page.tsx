@@ -41,7 +41,7 @@ export default function LandingPage() {
         </div>
 
         <div className="w-full max-w-xl text-left space-y-6">
-          <p className="text-base text-neutral-200">
+          {/* <p className="text-base text-neutral-200">
             Step 1.{' '}
             <a
               href={INSTRUCTION_URL}
@@ -55,12 +55,12 @@ export default function LandingPage() {
           </p>
 
           <p className="text-base text-neutral-200">
-            Step 2.{' '} 
+            Step 2.{' '}
               Bookmark this page in case you need to come back to it later.
-          </p>
+          </p> */}
 
           <p className="text-base text-neutral-200">
-            Step 3.{' '} Sign in below to develop and submit your mediators.
+            Sign in below to develop and submit your mediators.
           </p>
 
           <div className="flex flex-col items-start gap-3">
@@ -74,7 +74,7 @@ export default function LandingPage() {
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm text-neutral-300">
+            <p className="text-base text-neutral-300">
               A brief video introducing the toolkit:
             </p>
             <div className="aspect-video rounded-lg border border-neutral-800 bg-neutral-900/50 overflow-hidden">
@@ -85,9 +85,8 @@ export default function LandingPage() {
                 allowFullScreen
               />
             </div>
-            <div className="space-y-1 text-sm text-neutral-300">
-              <p className="font-medium text-neutral-200">Prefer reading the instructions?</p>
-              <p>If you prefer reading instead of watching the video, you can access the complete written tutorial below.</p>
+            <div className="space-y-1 text-base text-neutral-300">
+              <p className="font-medium text-neutral-200">Prefer reading the instructions? If you prefer reading instead of watching the video, you can access the complete written tutorial below.</p>
               <a href={TUTORIAL_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">
                 Tutorial
               </a>
