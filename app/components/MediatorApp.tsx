@@ -170,7 +170,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [computing, setComputing] = useState<'track1' | 'track2' | null>(null)
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const [numCohorts, setNumCohorts] = useState('1')
+  const [numCohorts, setNumCohorts] = useState('5')
   const [numUtterances, setNumUtterances] = useState('15')
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
 
