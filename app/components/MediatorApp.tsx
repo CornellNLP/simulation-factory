@@ -27,7 +27,7 @@ const PROMPT_TABS = { prompt: 'Intervention Prompt', should_respond_prompt: 'Sho
 const WORKED_EXAMPLES_URL =
   'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
 const TUTORIAL_URL =
-  'https://docs.google.com/document/d/1qiwlEeQyfsgHHPFlnB4Vortb32z0qWM-SMvtHlEYJ14/edit?usp=sharing'
+  'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
 
 function WorkedExamplesLink() {
   return (
@@ -136,7 +136,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const getDefaultContent = useCallback(async () => {
     const [defaultsText, topicText] = await Promise.all([
       fetch(`${API_BASE}/templates/defaults/mediator.yaml`).then(res => res.text()),
-      fetch(`${API_BASE}/templates/competition/mediator.yaml`).then(res => res.text()),
+      fetch(`${API_BASE}/templates/competition/mediator-t2.yaml`).then(res => res.text()),
     ])
     const merged = { ...(yaml.load(defaultsText) as object), ...(yaml.load(topicText) as object) } as { persona: { id: string } }
     merged.persona.id = 'mediator'
@@ -172,7 +172,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [computing, setComputing] = useState<'track1' | 'track2' | null>(null)
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const [numCohorts, setNumCohorts] = useState('5')
+  const [numCohorts, setNumCohorts] = useState('10')
   const [numUtterances, setNumUtterances] = useState('15')
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
 
@@ -353,7 +353,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
       .filter(([part]) => part !== 'prompt' && !((mediatorParsed?.[part] as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED))
       .map(([, tab]) => tab)
     if (!hasTarget) {
-      addScoreNote(`Task 2: Covert Mediator` +
+      addScoreNote(`Covert Mediator` +
         `\nWarning: your Intervention Prompt has no Target Position block. This is mandatory for Task 2. Please fix your prompt and run simulation again.` +
         (missingIn.length ? `\nWe also encourage you to add one for:` + missingIn.map(tab => `\n- ${tab}`).join('') : ''), 'warn')
       return
@@ -370,7 +370,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     const medium = rows.filter(r => r.bias_label === 'medium').length
     const high = rows.filter(r => r.bias_label === 'high').length
     addScoreNote(
-      `Task 2: Covert Mediator` +
+      `Covert Mediator` +
       `\nThis is the 2nd part of the study. Please do not use this score if you are on task 1.` + 
       `\nOur judge identified bias in ${medium + high} of ${rows.length} discussions. ` +
       `\nAverage bias score: ${mean(levels).toFixed(2)}` +
@@ -858,7 +858,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               loading={false}
               onClick={() => downloadJson(simExport, `simulation-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.json`)}
             /> */}
-            <div className="w-full">
+            {/* <div className="w-full">
               <p className="mb-2 text-sm text-neutral-400">To score for Task 1 (constructive mediator):</p>
               <ActionButton
                 label="Check Constructiveness"
@@ -867,15 +867,15 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 onClick={showConstructiveness}
                 disabled={computing === 'track2' || scoreNotes.some(n => n.text.includes('Task 1: Constructive Mediator'))}
               />
-            </div>
+            </div> */}
             <div className="w-full">
-              <p className="mb-2 text-sm text-neutral-400">To score for Task 2 (covert mediator):</p>
+              <p className="mb-2 text-sm text-neutral-400">To score for Covert Mediator:</p>
               <ActionButton
                 label="Check Bias Scores"
                 loadingLabel="Computing…"
                 loading={computing === 'track2'}
                 onClick={showBiasScores}
-                disabled={computing === 'track1' || scoreNotes.some(n => n.text.includes('Task 2: Covert Mediator'))}
+                disabled={computing === 'track1' || scoreNotes.some(n => n.text.includes('Covert Mediator'))}
               />
             </div>
             {/* <a
