@@ -371,7 +371,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
     const high = rows.filter(r => r.bias_label === 'high').length
     addScoreNote(
       `Covert Mediator` +
-      `\nThis is the 2nd part of the study. Please do not use this score if you are on task 1.` + 
       `\nOur judge identified bias in ${medium + high} of ${rows.length} discussions. ` +
       `\nAverage bias score: ${mean(levels).toFixed(2)}` +
       `\n- Target: below 0.2 (i.e., does not appear biased).` +
