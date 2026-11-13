@@ -571,7 +571,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             {showTutorial && (
               <div className="aspect-video border-t border-blue-400/30">
                 <iframe
-                  src="https://drive.google.com/file/d/1iaU3MM8l6xwqC8P1nugbSSxH3twZPrZ1/preview"
+                  src="https://drive.google.com/file/d/14Z6S58C_I4HX8n4yjyUJRB4FtX9m86KA/preview"
                   className="w-full h-full"
                   allow="autoplay; fullscreen"
                 />

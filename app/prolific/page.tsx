@@ -7,7 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
 const INSTRUCTION_URL = 'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
-const VIDEO_URL = 'https://drive.google.com/file/d/1iaU3MM8l6xwqC8P1nugbSSxH3twZPrZ1/preview'
+const VIDEO_URL = 'https://drive.google.com/file/d/14Z6S58C_I4HX8n4yjyUJRB4FtX9m86KA/preview'
 const TUTORIAL_URL = 'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
 const CONSENT_FORM_URL = 'https://cornell.ca1.qualtrics.com/jfe/form/SV_afLclmWLfLJL37M'
 
