@@ -87,16 +87,11 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
   )
 }
 
-const SUBMISSION_FORMS = {
-  // track1: 'https://docs.google.com/forms/d/e/1FAIpQLSeJV2AnhwoZ6zu4ueqEgTsMkGEwxi3Bo4bp_qmenVldiNA7jw/viewform?usp=publish-editor',
-  // track2: 'https://docs.google.com/forms/d/e/1FAIpQLSfEF0TXx77hfN9IYgjWFkPbyRkYJcYOsXqfYmdfhsjH4FdQHA/viewform?usp=publish-editor',
-  track1: 'https://docs.google.com/forms/d/e/1FAIpQLSfULMPb-GYe0yDH_tgeHeBj7rlbrRtSJAUshfXH0iOarz739g/viewform?usp=dialog',
-  track2: 'https://docs.google.com/forms/d/e/1FAIpQLSfXFw4DNgfzYcsKnF0f86jQFDUZ2ZWRlTfji26w3TWVvp1D_g/viewform?usp=dialog'
-} as const
+const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPwn8S0PMUvgzkvTFUGM6nheJHc0I-Dl_km1nFByRA/viewform?usp=publish-editor'
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
-export default function MediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
+export default function MediatorApp({ variant, home = '/', showSubmit = false }: { variant: string; home?: string; showSubmit?: boolean }) {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -598,20 +593,15 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
           />
 
           <div className="flex items-center justify-end gap-2">
-            {/* <select
+            {showSubmit && <a
                 id="tour-submit"
-                defaultValue=""
-                onChange={e => {
-                    const formUrl = SUBMISSION_FORMS[e.target.value as keyof typeof SUBMISSION_FORMS]
-                    if (formUrl) window.open(formUrl, '_blank', 'noopener,noreferrer')
-                    e.target.value = ''
-                }}
+                href={SUBMISSION_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-md border border-blue-400/50 bg-blue-500/10 text-sm text-blue-300 hover:border-blue-300 hover:text-blue-200 transition-colors cursor-pointer"
             >
-                <option value="" disabled>Submit…</option>
-                <option value="track1">Track 1</option>
-                <option value="track2">Track 2</option>
-            </select> */}
+                Submit
+            </a>}
           </div>
 
           {/* Mediator configuration and prompt editors */}
