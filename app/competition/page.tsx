@@ -41,25 +41,18 @@ export default function LandingPage() {
         </div>
 
         <div className="w-full max-w-xl text-left space-y-6">
-          {/* <p className="text-base text-neutral-200">
+          <p className="text-base text-neutral-200">
             Step 1.{' '}
-            <a
-              href={INSTRUCTION_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 text-neutral-100 hover:text-white"
-            >
-              Read the instructions
-            </a>{' '}
-            before you begin.
+            Watch the tutorial and/or the textual descriptions before you begin.
           </p>
 
           <p className="text-base text-neutral-200">
             Step 2.{' '}
               Bookmark this page in case you need to come back to it later.
-          </p> */}
+          </p>
 
           <p className="text-base text-neutral-200">
+            Step 3.{' '}
             Sign in below to develop and submit your mediators.
           </p>
 

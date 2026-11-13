@@ -88,10 +88,11 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
 }
 
 const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPwn8S0PMUvgzkvTFUGM6nheJHc0I-Dl_km1nFByRA/viewform?usp=publish-editor'
+const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1tX9w_9RFuES2jxlGTDY2lXpRenc354hjzYMeH8LzngU/edit?usp=sharing'
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
-export default function MediatorApp({ variant, home = '/', showSubmit = false }: { variant: string; home?: string; showSubmit?: boolean }) {
+export default function MediatorApp({ variant, home = '/', showSubmit = false, showInstructions = false }: { variant: string; home?: string; showSubmit?: boolean; showInstructions?: boolean }) {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -548,8 +549,19 @@ export default function MediatorApp({ variant, home = '/', showSubmit = false }:
             </div>
           </div>
 
-          {/* tutorial video banner */}
+          {/* competition instructions + tutorial video banner */}
           <div className="rounded-md border border-blue-400/50 bg-blue-500/10 overflow-hidden text-sm text-blue-200">
+            {showInstructions && (
+              <a
+                href={COMPETITION_INSTRUCTIONS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-3 px-4 py-3 border-b border-blue-400/10 hover:bg-blue-500/20 hover:text-blue-100 transition-colors cursor-pointer"
+              >
+                <span>Read the competition instructions before building and submitting your mediator.</span>
+                <span className="shrink-0 font-medium underline underline-offset-2">Open instructions →</span>
+              </a>
+            )}
             <button
               onClick={() => setShowTutorial(v => !v)}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-blue-500/20 hover:text-blue-100 transition-colors cursor-pointer"
