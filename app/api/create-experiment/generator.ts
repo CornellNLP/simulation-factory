@@ -101,7 +101,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   if (chatStage) {
     if (isSim) {
       // currently not removing the timer limit, in case simulation gets stuck in some cohorts, they can still finish within this time.
-      chatStage.timeLimitInMinutes = 9
+      chatStage.timeLimitInMinutes = 4
       chatStage.requireFullTime = false
       if (numUtterances != null) chatStage.numUtterances = numUtterances  // else keep template default
     } else {
