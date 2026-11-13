@@ -15,6 +15,8 @@ export type Mode = 'human-human' | 'human-agent' | 'agent-agent'
 type ParticipantSlot = { slot: string; type: 'human' | 'agent'; template?: string }
 
 const randint = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a
+const COHORT_RATINGS: [number, number][] = [[1, 7], [1, 6], [2, 7], [2, 6]]   // same as TrAuSt-util competition/tracks.py
+const SIDES = ['supporting the debate statement', 'opposing the debate statement']
 
 function shuffle<T>(arr: T[]): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -119,7 +121,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
   for (let ci = 0; ci < numCohortsResolved; ci++) {
     const ratings = isSim
-      ? shuffle([randint(5, 7), randint(1, 3)])
+      ? shuffle([...COHORT_RATINGS[ci % COHORT_RATINGS.length]])
       : agentSlots.map(() => randint(1, 7))
     const stance: Record<string, any> = {}
     agentSlots.forEach((slot, i) => {
@@ -151,8 +153,14 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
   const agents = cohortAgents.flat() 
 
-  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim)
-  template.experiment.variableConfigs = [BIAS_VARIABLE_CONFIG]
+  // first half of the cohorts push toward supporting, second half toward opposing
+  const simAliases = isSim ? Array.from({ length: numCohortsResolved }, (_, i) => `sim-${i + 1}`) : []
+  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, simAliases)
+  const sideOf = (i: number) => JSON.stringify([SIDES[i < numCohortsResolved / 2 ? 0 : 1]])
+  template.experiment.variableConfigs = [isSim
+    ? { id: BIAS_VARIABLE_CONFIG.id, type: 'static', scope: 'cohort', definition: BIAS_VARIABLE_CONFIG.definition,
+        value: sideOf(0), cohortValues: Object.fromEntries(simAliases.map((a, i) => [a, sideOf(i)])) }
+    : BIAS_VARIABLE_CONFIG]
 
   const authHeaders = {
     Authorization: `Bearer ${API_KEY}`,
@@ -164,7 +172,6 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   let cohortBias: (Record<string, string> | null)[] = []
 
   if (isSim) {
-    const cfg = exp.defaultCohortConfig ?? {}
     const expRes = await fetch(`${BASE_URL}/experiments`, {
       method: 'POST',
       headers: authHeaders,
@@ -174,26 +181,19 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
     const expJson = await expRes.json()
     expId = expJson.experiment.id
 
-    const cohortRes = await fetch(`${BASE_URL}/experiments/${expId}/cohorts/batch`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({
-        cohorts: Array.from({ length: numCohortsResolved }, (_, i) => ({
-          name: `[toolkit-sim] ${topicInfo.name} #${i + 1}`,
-          description: `Simulation for ${topicInfo.name}.`,
-          participantConfig: {
-            minParticipantsPerCohort: cfg.minParticipantsPerCohort ?? 2,
-            maxParticipantsPerCohort: cfg.maxParticipantsPerCohort ?? 2,
-            includeAllParticipantsInCohortCount: cfg.includeAllParticipantsInCohortCount ?? true,
-            botProtection: cfg.botProtection ?? true,
-          },
-        })),
-      }),
-    })
-    if (!cohortRes.ok) throw new Error(`create_simulation failed: ${await cohortRes.text()}`)
-    const cohortJson = await cohortRes.json()
-    cohortIds = cohortJson.cohorts.map((c: any) => (c.cohort ?? c).id)
-    cohortBias = cohortJson.cohorts.map((c: any) => (c.cohort ?? c).variableMap ?? null)
+    // the cohorts were created with the experiment (one per alias); look up their ids like the non-sim path below
+    const exportRes = await fetch(`${BASE_URL}/experiments/${expId}/export`, { method: 'GET', headers: authHeaders })
+    if (!exportRes.ok) throw new Error(`export_experiment failed: ${await exportRes.text()}`)
+    const expData = await exportRes.json()
+    const generated: Record<string, string> = {}
+    for (const c of expData.experiment.cohortDefinitions) generated[c.alias] = c.generatedCohortId
+    cohortIds = simAliases.map(a => generated[a])
+    cohortBias = await Promise.all(cohortIds.map(async cid => {
+      const res = await fetch(`${BASE_URL}/experiments/${expId}/cohorts/${cid}`, { method: 'GET', headers: authHeaders })
+      if (!res.ok) return null
+      const cohortJson = await res.json()
+      return (cohortJson.cohort ?? cohortJson)?.variableMap ?? null
+    }))
   } else {
     const expRes = await fetch(`${BASE_URL}/experiments`, {
       method: 'POST',

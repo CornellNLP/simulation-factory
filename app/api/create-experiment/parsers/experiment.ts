@@ -37,7 +37,8 @@ export function buildExperiment(
   mediator: AgentMediatorTemplate,
   agents: AgentParticipantTemplate[] | null,
   mode: string,
-  sim: boolean
+  sim: boolean,
+  simAliases: string[] = [],
 ): [Record<string, any>, string] {
 
   const subs: Record<string, string> = { '{name}': topicInfo.name, '{statement}': topicInfo.statement }
@@ -56,9 +57,15 @@ export function buildExperiment(
   let cohortDefinitions: Record<string, any>[]
   let cohortLockMap: Record<string, boolean>
   if (sim) {
-    // config is taken care when creating the simulation, ignore them here.
-    cohortDefinitions = []
-    cohortLockMap = {}
+    // one cohort per alias; generator.ts maps each alias to its bias side.
+    // no maxParticipantsPerCohort here: it turns on overflow cohorts; defaultCohortConfig already caps at 2
+    cohortDefinitions = simAliases.map((a, i) => ({
+      id: a,
+      alias: a,
+      name: `[toolkit-sim] ${topicInfo.name} #${i + 1}`,
+      description: `Simulation for ${topicInfo.name}.`,
+    }))
+    cohortLockMap = Object.fromEntries(simAliases.map(a => [a, false]))
   } else {
     cohortDefinitions = [
         {

@@ -172,7 +172,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   const [computing, setComputing] = useState<'track1' | 'track2' | null>(null)
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const [numCohorts, setNumCohorts] = useState('10')
+  const [numCohorts, setNumCohorts] = useState('8')
   const [numUtterances, setNumUtterances] = useState('15')
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
 
@@ -795,20 +795,14 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             {/* agent-agent (simulation) on its own row, with cohort count */}
             <div className="flex flex-wrap items-center gap-3">
               <div>
-                <input
-                  type="text"
-                  min={1}
-                  max={30}
+                <select
                   value={numCohorts}
-                  onChange={e => {
-                    const v = e.target.value
-                    if (v === '') return setNumCohorts('')
-                    const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) setNumCohorts(String(Math.min(30, Math.max(1, n))))
-                  }}
+                  onChange={e => setNumCohorts(e.target.value)}
                   disabled={busy}
-                  className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                /> <label className="text-sm text-neutral-400">Discussions (1-30)</label>
+                  className="p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
+                >
+                  {[8, 16, 24, 32].map(n => <option key={n} value={n}>{n}</option>)}
+                </select> <label className="text-sm text-neutral-400">Discussions</label>
               </div>
               <div>
                 <input
@@ -826,7 +820,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                   className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
                 /> <label className="text-sm text-neutral-400">Messages (1-20)</label>
               </div>
-              <div className="flex flex-col">
+              <div className="flex flex-col w-full">
                 <label className="text-sm text-neutral-400">Max wait time: {(() => { const s = Math.round((simQuota?.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()} minutes</label>
                 {simStartTime !== null && (
                   <label className="text-sm text-neutral-400">
