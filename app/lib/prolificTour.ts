@@ -1,7 +1,7 @@
 import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
 
-// tour for the prolific toolkit (ProlificMediatorApp); competition keeps tour.ts
+// tour for the prolific toolkit (ProlificMediatorApp); competition has competitionTour.ts
 export function startTour() {
     driver({
         showProgress: true,
