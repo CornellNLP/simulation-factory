@@ -634,7 +634,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
                 />
               </div>
             )}
-            {showTutorial && variant === 'prolific' && (
+            {showTutorial && (
               <div className="border-t border-blue-400/30 px-4 py-3 space-y-1">
                 <p className="font-medium">Prefer reading the instructions? If you prefer reading instead of watching the video, you can access the complete written tutorial below.</p>
                 <a href={TUTORIAL_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-blue-100">
