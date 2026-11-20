@@ -43,7 +43,15 @@ export default function LandingPage() {
         <div className="w-full max-w-xl text-left space-y-6">
           <p className="text-base text-neutral-200">
             Step 1.{' '}
-            Watch the tutorial before you begin.
+            <a
+              href={INSTRUCTION_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 text-neutral-100 hover:text-white"
+            >
+              Read the instructions
+            </a>{' '}
+            before you begin.
           </p>
 
           <p className="text-base text-neutral-200">

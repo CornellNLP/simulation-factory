@@ -52,7 +52,7 @@ function previewBlocks(items: PromptItem[]): { text: string; color?: string }[] 
 }
 
 const WORKED_EXAMPLES_URL =
-  'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
+  'https://docs.google.com/document/d/1lwWgQJT8C0nOsKhbtUsska0p1ivLOyKoXrcD9CTWkK0/edit?tab=t.22f8allvgzkm'
 const TUTORIAL_URL =
   'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
 
@@ -69,9 +69,9 @@ function PromptEditorDescription({ description }: { description?: string }) {
     <div className="rounded-md border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-sm text-neutral-500 space-y-1.5">
       <p className="font-medium text-neutral-400">Prompt Purpose</p>
       {description}
-      {/* <p>
+      <p>
         See <WorkedExamplesLink />.
-      </p> */}
+      </p>
     </div>
   )
 }
@@ -115,7 +115,7 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
 }
 
 const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPwn8S0PMUvgzkvTFUGM6nheJHc0I-Dl_km1nFByRA/viewform?usp=publish-editor'
-const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1tX9w_9RFuES2jxlGTDY2lXpRenc354hjzYMeH8LzngU/edit?usp=sharing'
+const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1lwWgQJT8C0nOsKhbtUsska0p1ivLOyKoXrcD9CTWkK0/edit?tab=t.lobm1bajyzvz#heading=h.lwm5dlpflun5'
 
 type Task = 'task1' | 'task2'
 const TASK_LABELS: Record<Task, string> = { task1: 'Task 1: Constructive Mediator', task2: 'Task 2: Covert Mediator' }
@@ -693,7 +693,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
               <div className="border-b border-neutral-800 pb-3">
                 <h2 className="text-lg font-semibold tracking-tight">Prompt Editors</h2>
               </div>
-              <p className="text-sm text-neutral-500">Here you can edit the prompts to guide the mediator's interventions. The <span className="text-neutral-400">Intervention Prompt</span> controls what the mediator says; the <span className="text-neutral-400">Should Intervene</span> prompts the LLM to return true/false on whether it should intervene. The <span className="text-neutral-400">Initialization Prompt</span> instructs the LLM to gather information that can be used in discussions. <a href="https://www.promptingguide.ai/" target="_blank" className="underline hover:text-neutral-300">Learn more about prompt engineering.</a></p>
+              <p className="text-sm text-neutral-500">Here you can edit the prompts to guide the mediator's interventions. The <span className="text-neutral-400">Intervention Prompt</span> controls what the mediator says; the <span className="text-neutral-400">Should Intervene</span> prompts the LLM to return true/false on whether it should intervene. The <span className="text-neutral-400">Initialization Prompt</span> instructs the LLM to gather information that can be used in discussions. Take a look at our <WorkedExamplesLink /> to see how these work. <a href="https://www.promptingguide.ai/" target="_blank" className="underline hover:text-neutral-300">Learn more about prompt engineering.</a></p>
             </div>
 
             <div className="rounded-lg border border-neutral-800">
