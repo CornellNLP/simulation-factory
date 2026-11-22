@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -118,7 +118,9 @@ const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPw
 const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1lwWgQJT8C0nOsKhbtUsska0p1ivLOyKoXrcD9CTWkK0/edit?tab=t.lobm1bajyzvz#heading=h.lwm5dlpflun5'
 
 type Task = 'task1' | 'task2'
-const TASK_LABELS: Record<Task, string> = { task1: 'Task 1: Constructive Mediator', task2: 'Task 2: Covert Mediator' }
+const TASK_LABELS: Record<Task, string> = { task1: 'Constructive Mediator', task2: 'Covert Mediator' }
+const TASK_TEMPLATES: Record<Task, string> = { task1: 'mediator.yaml', task2: 'mediator-t2.yaml' }
+const TASK_COLLECTIONS: Record<Task, 'mediators' | 'mediators-covert'> = { task1: 'mediators', task2: 'mediators-covert' }
 type TargetIssue = { kind: 'required' | 'forbidden' | 'tip'; tabs: string[] }
 
 // Target Position check shown at Simulate and Evaluate: required = Task 2's Intervention Prompt has none, forbidden = Task 1 has one anywhere
@@ -134,7 +136,7 @@ function TargetPositionNote({ kind, tabs }: TargetIssue) {
           ? <>For Task 2, your Intervention Prompt needs a {chip} block. Please add one and run the simulation again.{tabs.length > 0 && ' We also encourage you to add one to:'}</>
           : kind === 'forbidden'
             ? <>Task 1 doesn't allow {chip} blocks. Please remove them from these prompts and run the simulation again:</>
-            : <>We encourage you to add a {chip} block to these prompts too:</>}
+            : <>You may also want to add a {chip} block to these prompts:</>}
       </p>
       {tabs.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -183,6 +185,8 @@ function ScoreRow({ label, value, met, target, tip }: { label: string; value: nu
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
+const SCORE_ATTEMPTS = 3
+const SCORE_RETRY_DELAY_MS = 5000
 const CONSTRUCTIVENESS_TARGET = 2.75   // Task 1: constructiveness should go above this
 const DETECTION_TARGET = 0.1   // Task 2: the detection score should stay below this
 const MOVEMENT_TARGET = 0.15   // and the stance movement should go above this
@@ -193,7 +197,8 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   const [simQuota, setSimQuota] = useState<{ used: number; limit: number; simMaxWaitTimeMs: number } | null>(null)
 
   const [showTutorial, setShowTutorial] = useState(false)
-  const [dirty, setDirty] = useState(false)
+  const [dirtyByTask, setDirtyByTask] = useState<Record<Task, boolean>>({ task1: false, task2: false })
+  const dirty = dirtyByTask.task1 || dirtyByTask.task2
 
   async function fetchQuota() {
     try {
@@ -220,13 +225,18 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
     })
   }, [router, home])
 
-  const [mediatorData, setMediatorData] = useState<string | null>(null)
+  const [task, setTask] = useState<Task>('task1')
+  const [mediatorByTask, setMediatorByTask] = useState<Record<Task, string | null>>({ task1: null, task2: null })
+  const [templateNames, setTemplateNames] = useState<Record<Task, string>>({ task1: '', task2: '' })
+  const mediatorData = mediatorByTask[task]
+  const setMediatorData = (value: SetStateAction<string | null>) =>
+    setMediatorByTask(prev => ({ ...prev, [task]: typeof value === 'function' ? value(prev[task]) : value }))
   const [topicId, setTopicId] = useState<number>(Number(Object.keys(TOPICS)[0]))
 
-  const getDefaultContent = useCallback(async () => {
+  const getDefaultContent = useCallback(async (t: Task) => {
     const [defaultsText, topicText] = await Promise.all([
       fetch(`${API_BASE}/templates/defaults/mediator.yaml`).then(res => res.text()),
-      fetch(`${API_BASE}/templates/competition/mediator.yaml`).then(res => res.text()),
+      fetch(`${API_BASE}/templates/competition/${TASK_TEMPLATES[t]}`).then(res => res.text()),
     ])
     const merged = { ...(yaml.load(defaultsText) as object), ...(yaml.load(topicText) as object) } as { persona: { id: string } }
     merged.persona.id = 'mediator'
@@ -261,13 +271,12 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   const [computing, setComputing] = useState<'track1' | 'track2' | null>(null)
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const [numCohorts, setNumCohorts] = useState('8')
-  const [numUtterances, setNumUtterances] = useState('15')
+  const numCohorts = '5'        // fixed, people can't change it
+  const numUtterances = '15'
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
   const [showPreview, setShowPreview] = useState(false)
-  const [task, setTask] = useState<Task>('task1')   // chosen above Simulate
   const [simTask, setSimTask] = useState<Task | null>(null)   // the task the current simulation was run for; Evaluate scores this one
-  const [simTargetIssue, setSimTargetIssue] = useState<TargetIssue | null>(null)   // Simulate blocked by the task's Target Position rule
+  const [simTargetIssue, setSimTargetIssue] = useState<TargetIssue | null>(null)
   const [missingTarget, setMissingTarget] = useState<TargetIssue | null>(null)   // same check at Evaluate
   const [evaluation, setEvaluation] = useState<
     { task: 'task1'; constructiveness: number } | { task: 'task2'; detection: number; movement: number; flagged: number; total: number } | null
@@ -290,9 +299,11 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
 
   const busy = creating !== null || exportState.status === 'loading' || simState.status === 'loading'
 
-  const mediatorParsed = useMemo(() => {
-    try { return JSON.parse(mediatorData ?? '') } catch { return null }
-  }, [mediatorData])
+  const parsedByTask = useMemo(() => {
+    const parse = (data: string | null) => { try { return JSON.parse(data ?? '') } catch { return null } }
+    return { task1: parse(mediatorByTask.task1), task2: parse(mediatorByTask.task2) }
+  }, [mediatorByTask])
+  const mediatorParsed = parsedByTask[task]
 
   const updateShouldRespondPrompt = (prompt: PromptItem[]) => {
     const reindexed = prompt.map((item, i) => ({ ...item, id: i }))
@@ -389,26 +400,19 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
     if (simExport === null) return null
     setComputing(track)
     try {
-      const res = await fetch(`${API_BASE}/api/convokit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(simExport),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        alert(`ConvoKit conversion failed: ${err.error ?? res.statusText}`)
-        return null
+      for (let attempt = 1; attempt <= SCORE_ATTEMPTS; attempt++) {
+        const data = await fetch(`${API_BASE}/api/convokit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(simExport),
+        }).then(res => res.ok ? res.json() : null).catch(() => null)
+        if (data?.scores) {
+          const rows = Object.values(data.scores) as NonNullable<typeof scores>
+          setScores(rows)
+          return rows
+        }
+        if (attempt < SCORE_ATTEMPTS) await new Promise(resolve => setTimeout(resolve, SCORE_RETRY_DELAY_MS))
       }
-      const data = await res.json()
-      if (!data.scores) {
-        alert('No scores available currently, please try again later.')
-        return null
-      }
-      const rows = Object.values(data.scores) as NonNullable<typeof scores>
-      setScores(rows)
-      return rows
-    } catch (e) {
-      alert(`ConvoKit conversion error: ${String(e)}`)
       return null
     } finally {
       setComputing(null)
@@ -418,7 +422,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   // Target Position rule for a task: Task 1 allows none anywhere; Task 2 needs one in the Intervention Prompt (and suggests the other prompts)
   function targetPositionIssue(t: Task): TargetIssue | null {
     const withTarget = Object.entries(PROMPT_TABS)
-      .filter(([part]) => ((mediatorParsed?.[part] as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED))
+      .filter(([part]) => ((parsedByTask[t]?.[part] as PromptItem[]) ?? []).some(p => p.type === PromptItemType.BIASED))
       .map(([, tab]) => tab)
     if (t === 'task1') return withTarget.length ? { kind: 'forbidden', tabs: withTarget } : null
     const missingIn = Object.values(PROMPT_TABS).filter(tab => tab !== PROMPT_TABS.prompt && !withTarget.includes(tab))
@@ -436,7 +440,6 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
     }
     const rows = await fetchScores(t === 'task1' ? 'track1' : 'track2')
     if (!rows) return
-    setMissingTarget(issue)   // the tip, or nothing
     if (t === 'task1') {
       const values = rows.map(r => r.constructiveness).filter((x): x is number => x !== null)
       setEvaluation({ task: 'task1', constructiveness: mean(values) })
@@ -550,15 +553,19 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   }
   simPollRef.current = handleSimPoll
 
+  useEffect(() => {
+    if (simState.status === 'done' && simExport !== null && evaluation === null) handleEvaluate()
+  }, [simState.status, simExport])
+
 
   // sent to simulation + polling its status
   async function handleCreateSim() {
-    const similarity = templateSimilarity(mediatorParsed ?? {}, JSON.parse(await getDefaultContent()))
+    const similarity = templateSimilarity(mediatorParsed ?? {}, JSON.parse(await getDefaultContent(task)))
     setSimilarityScore(similarity)
     // the chosen task's Target Position rule: Task 1 allows none, Task 2 needs one in the Intervention Prompt
     const issue = targetPositionIssue(task)
     const blocked = issue && issue.kind !== 'tip' ? issue : null
-    setSimTargetIssue(blocked)
+    setSimTargetIssue(issue)
     if (similarity > SIMILARITY_THRESHOLD || blocked) {
       setSimExport(null)
       setEvaluation(null)
@@ -664,15 +671,46 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
             )} */}
           </div>
 
+          <div id="tour-tracks" className="flex border-b border-neutral-800">
+            {(['task1', 'task2'] as const).map(t => (
+              <button
+                key={t}
+                id={`tour-tab-${t}`}
+                onClick={() => setTask(t)}
+                className={`px-4 py-2.5 rounded-t-md text-sm font-medium transition-colors cursor-pointer ${task === t ? 'bg-blue-500/10 text-blue-300 border-b-2 border-blue-400 -mb-px' : 'text-neutral-500 hover:text-neutral-300'}`}
+              >
+                {TASK_LABELS[t]}
+              </button>
+            ))}
+            {task === 'task2' && (
+              <button
+                id="tour-copy-constructive"
+                onClick={() => {
+                  if (dirtyByTask.task2 && !window.confirm('You have unsaved changes. Replace them with your constructive mediator?')) return
+                  setMediatorByTask(prev => ({ ...prev, task2: prev.task1 }))
+                }}
+                disabled={mediatorByTask.task1 === null}
+                className="ml-auto self-center px-3 py-1.5 rounded-md border border-neutral-700 bg-neutral-900 text-sm text-neutral-400 hover:border-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Copy your constructive mediator
+              </button>
+            )}
+          </div>
+
           {/* Save / Load */}
-          <SaveSection
-            collection="mediators"
-            content={mediatorData}
-            onContentChange={setMediatorData}
-            getDefaultContent={getDefaultContent}
-            onDirtyChange={setDirty}
-            enabled={authReady}
-          />
+          {([task, task === 'task1' ? 'task2' : 'task1'] as const).map(t => (
+            <div key={t} className={t === task ? '' : 'hidden'}>
+              <SaveSection
+                collection={TASK_COLLECTIONS[t]}
+                content={mediatorByTask[t]}
+                onContentChange={content => setMediatorByTask(prev => ({ ...prev, [t]: content }))}
+                getDefaultContent={() => getDefaultContent(t)}
+                onDirtyChange={d => setDirtyByTask(prev => ({ ...prev, [t]: d }))}
+                onNameChange={name => setTemplateNames(prev => ({ ...prev, [t]: name }))}
+                enabled={authReady}
+              />
+            </div>
+          ))}
 
           <div className="flex items-center justify-end gap-2">
             <a
@@ -828,6 +866,11 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
           setData={setMediatorData}
           downloadId="tour-template-download"
           uploadId="tour-template-upload"
+          downloads={[
+            { filename: `${templateNames.task1 || 'mediator'} (task 1).yaml`, data: mediatorByTask.task1 },
+            { filename: `${templateNames.task2 || 'mediator'} (task 2).yaml`, data: mediatorByTask.task2 },
+          ]}
+          downloadLabel="Download YAML (both)"
         />
 
         {/* Actions: create buttons, then experiment id + export */}
@@ -890,44 +933,9 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
                 </span>
               </div>
             )}
-            {/* which task this simulation is for: Simulate checks that task's Target Position rule, Evaluate scores it */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-              <span className="text-neutral-400">Task:</span>
-              {(['task1', 'task2'] as const).map(t => (
-                <label key={t} htmlFor={`sim-task-${t}`} className="flex items-center gap-1.5 text-neutral-200 cursor-pointer">
-                  <input type="radio" id={`sim-task-${t}`} name="sim-task" checked={task === t} onChange={() => setTask(t)} disabled={busy} className="accent-blue-400" />
-                  {TASK_LABELS[t]}
-                </label>
-              ))}
-            </div>
             {/* agent-agent (simulation) on its own row, with cohort count */}
             <div className="flex flex-wrap items-center gap-3">
-              <div>
-                <select
-                  value={numCohorts}
-                  onChange={e => setNumCohorts(e.target.value)}
-                  disabled={busy}
-                  className="p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                >
-                  {[8, 16, 24, 32].map(n => <option key={n} value={n}>{n}</option>)}
-                </select> <label className="text-sm text-neutral-400">Discussions</label>
-              </div>
-              <div>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={numUtterances}
-                  onChange={e => {
-                    const v = e.target.value
-                    if (v === '') return setNumUtterances('')
-                    const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) setNumUtterances(String(Math.min(20, Math.max(1, n))))
-                  }}
-                  disabled={busy}
-                  className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                /> <label className="text-sm text-neutral-400">Messages (1-20)</label>
-              </div>
+              {/* <p className="text-sm text-neutral-400">{numCohorts} discussions, {numUtterances} messages each</p> */}
               <div className="flex flex-col w-full">
                 <label className="text-sm text-neutral-400">Max wait time: {(() => { const s = Math.round((simQuota?.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()} minutes</label>
                 {simStartTime !== null && (
@@ -962,15 +970,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
               onClick={() => downloadJson(simExport, `simulation-${(simExport as { experiment?: { id?: string } })?.experiment?.id ?? 'export'}.json`)}
             /> */}
             <div className="w-full">
-              <p className="mb-2 text-sm text-neutral-400">Click below to check your mediator performance</p>
-              <button
-                onClick={handleEvaluate}
-                disabled={computing !== null || evaluation !== null || (!!missingTarget && missingTarget.kind !== 'tip')}
-                className="w-full px-5 py-2.5 rounded-lg border border-blue-400/50 bg-blue-500/10 text-base font-medium text-blue-300 hover:bg-blue-500/20 hover:text-blue-200 active:scale-[0.98] transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {computing !== null ? 'Computing…' : `Evaluate for ${(simTask ?? task) === 'task1' ? 'Task 1' : 'Task 2'}`}
-              </button>
-              {/* feedback right under the button: the Target Position check first, then the scores */}
+              {computing !== null && <p className="text-sm text-neutral-400">Computing…</p>}
               <div className="mt-3 space-y-3">
                 {missingTarget && <TargetPositionNote {...missingTarget} />}
                 {evaluation?.task === 'task1' && (
