@@ -33,28 +33,31 @@ function CopyIcon() {
 
 const buttonClass = 'w-full flex items-center justify-center gap-2 text-md px-4 py-2 rounded-lg border border-neutral-700 bg-neutral-900 text-neutral-300 hover:bg-neutral-800 hover:border-neutral-500 hover:text-neutral-100 active:scale-[0.98] transition-all duration-150 cursor-pointer'
 
-export function YamlIOSection({ label, filename, data, setData, downloadId, uploadId }: {
+export function YamlIOSection({ label, filename, data, setData, downloadId, uploadId, downloads, downloadLabel = 'Download YAML' }: {
   label: string
   filename: string
   data: string | null
   setData: (value: string) => void
   downloadId?: string
   uploadId?: string
+  downloads?: { filename: string; data: string | null }[]
+  downloadLabel?: string
 }) {
   const [showAsYaml, setShowAsYaml] = useState(false)
 
-  const toYamlText = () => {
-    try { return yaml.dump(JSON.parse(data ?? '')) } catch { return data ?? '' }
+  const toYamlText = (value = data) => {
+    try { return yaml.dump(JSON.parse(value ?? '')) } catch { return value ?? '' }
   }
 
   function handleDownload() {
-    const text = toYamlText()
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/yaml' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+    for (const file of downloads ?? [{ filename, data }]) {
+      const url = URL.createObjectURL(new Blob([toYamlText(file.data)], { type: 'text/yaml' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
   }
 
   function handleUpload(file: File) {
@@ -78,9 +81,9 @@ export function YamlIOSection({ label, filename, data, setData, downloadId, uplo
           className={buttonClass}
         >
           <DownloadIcon />
-          Download YAML
+          {downloadLabel}
         </button>
-        <label id={uploadId} title={`Upload ${label} .yaml file`} className={buttonClass}>
+        {/* <label id={uploadId} title={`Upload ${label} .yaml file`} className={buttonClass}>
           <UploadIcon />
           Upload YAML
           <input
@@ -96,7 +99,7 @@ export function YamlIOSection({ label, filename, data, setData, downloadId, uplo
           copiedLabel="Copied!"
           icon={<CopyIcon />}
           className={buttonClass}
-        />
+        /> */}
       </div>
       <button
         onClick={() => setShowAsYaml(v => !v)}
