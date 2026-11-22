@@ -189,7 +189,7 @@ const SCORE_ATTEMPTS = 3
 const SCORE_RETRY_DELAY_MS = 5000
 const CONSTRUCTIVENESS_TARGET = 2.75   // Task 1: constructiveness should go above this
 const DETECTION_TARGET = 0.1   // Task 2: the detection score should stay below this
-const MOVEMENT_TARGET = 0.15   // and the stance movement should go above this
+const MOVEMENT_TARGET = 0.2   // and the stance movement should go above this
 export default function CompetitionMediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
@@ -271,7 +271,8 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   const [computing, setComputing] = useState<'track1' | 'track2' | null>(null)
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const numCohorts = '8'        // fixed, people can't change it
+  // const numCohorts = '8'        // fixed, people can't change it
+  const numCohorts = task === 'task1' ? '4' : '8' // task-dependent quota
   const numUtterances = '15'
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
   const [showPreview, setShowPreview] = useState(false)
@@ -922,14 +923,14 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
             </div>
             {simQuota && (
               <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                {/* <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${simQuota.used >= simQuota.limit ? 'bg-red-500' : 'bg-neutral-500'}`}
                     style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
                   />
-                </div>
-                <span className={`text-xs tabular-nums ${simQuota.used >= simQuota.limit ? 'text-red-400' : 'text-neutral-500'}`}>
-                  {simQuota.used}/{simQuota.limit} today
+                </div> */}
+                <span className={`px-2.5 py-1 rounded-md border text-sm font-medium tabular-nums ${simQuota.used >= simQuota.limit ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+                  {Math.max(0, simQuota.limit - simQuota.used)} left today
                 </span>
               </div>
             )}
