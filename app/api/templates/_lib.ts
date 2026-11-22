@@ -1,6 +1,6 @@
 import { adminAuth, adminDb } from '../../lib/firebaseAdmin'
 
-export const ALLOWED_COLLECTIONS = ['mediators', 'assistants', 'assistants-reddit'] as const
+export const ALLOWED_COLLECTIONS = ['mediators', 'mediators-covert', 'assistants', 'assistants-reddit'] as const
 export type TemplateCollection = typeof ALLOWED_COLLECTIONS[number]
 
 export function isAllowedCollection(c: unknown): c is TemplateCollection {
