@@ -8,11 +8,12 @@ import { TemplateNameModal } from './TemplateNameModal'
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
 
 export interface SaveSectionProps {
-  collection: 'mediators' | 'assistants' | 'assistants-reddit'
+  collection: 'mediators' | 'mediators-covert' | 'assistants' | 'assistants-reddit'
   content: string | null
   onContentChange: (content: string) => void
   getDefaultContent: () => Promise<string>
   onDirtyChange?: (dirty: boolean) => void
+  onNameChange?: (name: string) => void
   enabled: boolean
 }
 
@@ -24,6 +25,7 @@ export function SaveSection({
   onContentChange,
   getDefaultContent,
   onDirtyChange,
+  onNameChange,
   enabled,
 }: SaveSectionProps) {
   const [items, setItems] = useState<SavedTemplateItem[]>([])
@@ -41,6 +43,7 @@ export function SaveSection({
 
   useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty])
   useEffect(() => { if (isDirty) setShowSaveAlert(false) }, [isDirty])
+  useEffect(() => { onNameChange?.(activeName) }, [activeName])
 
   async function authHeader(): Promise<Record<string, string> | null> {
     const token = await auth.currentUser?.getIdToken()
