@@ -188,7 +188,7 @@ const MAX_WAIT_TIME_MS = 300000
 const SCORE_ATTEMPTS = 3
 const SCORE_RETRY_DELAY_MS = 5000
 const CONSTRUCTIVENESS_TARGET = 2.75   // Task 1: constructiveness should go above this
-const DETECTION_TARGET = 0.2   // Task 2: the detection score should stay below this
+const DETECTION_TARGET = 0.1   // Task 2: the detection score should stay below this
 const MOVEMENT_TARGET = 0.15   // and the stance movement should go above this
 export default function CompetitionMediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
   const router = useRouter()
@@ -204,7 +204,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
     try {
       const token = await auth.currentUser?.getIdToken()
       if (!token) return
-      const res = await fetch(`${API_BASE}/api/quota`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`${API_BASE}/api/quota?task=${task}`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) return
       const data = await res.json()
       setSimQuota({ used: data.used, limit: data.limit, simMaxWaitTimeMs: data.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS })
@@ -220,7 +220,6 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
       } else {
         setAuthReady(true)
         setUserEmail(user.email)
-        fetchQuota()
       }
     })
   }, [router, home])
@@ -274,6 +273,12 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
   // const numCohorts = '8'        // fixed, people can't change it
   const numCohorts = task === 'task1' ? '4' : '8' // task-dependent quota
   const numUtterances = '15'
+  // competition quota is counted in runs, per task (see app/lib/competitionQuota.ts)
+  const runsLeft = simQuota ? Math.max(0, simQuota.limit - simQuota.used) : null
+  // quota is per task, so refetch on sign-in and whenever the tab changes
+  useEffect(() => {
+    if (authReady) fetchQuota()
+  }, [authReady, task])
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
   const [showPreview, setShowPreview] = useState(false)
   const [simTask, setSimTask] = useState<Task | null>(null)   // the task the current simulation was run for; Evaluate scores this one
@@ -465,7 +470,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
       const res = await fetch(`${API_BASE}/api/create-experiment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediatorTemplate: mediatorData, mode, variant, numCohorts, numUtterances, action, idToken }),
+        body: JSON.stringify({ mediatorTemplate: mediatorData, mode, variant, numCohorts, numUtterances, action, idToken, task }),
       })
       const data = await res.json()
       setCreateState({ status: res.ok ? 'done' : 'error', result: data })
@@ -929,8 +934,8 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
                     style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
                   />
                 </div> */}
-                <span className={`px-2.5 py-1 rounded-md border text-sm font-medium tabular-nums ${simQuota.used >= simQuota.limit ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
-                  {Math.max(0, simQuota.limit - simQuota.used)} left today
+                <span className={`px-2.5 py-1 rounded-md border text-sm font-medium tabular-nums ${runsLeft === 0 ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+                  {runsLeft} {runsLeft === 1 ? 'test' : 'tests'} left today (resets at midnight ET)
                 </span>
               </div>
             )}
@@ -949,7 +954,7 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
                 label="Simulate"
                 loadingLabel="Simulating…"
                 loading={(creating === 'agent-agent' && createAction === 'simulate') || simState.status === 'loading'}
-                disabled={busy || (simQuota !== null && simQuota.used >= simQuota.limit)}
+                disabled={busy || runsLeft === 0}
                 onClick={handleCreateSim}
               />
             </div>

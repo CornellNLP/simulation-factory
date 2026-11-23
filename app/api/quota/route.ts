@@ -1,4 +1,5 @@
 import { adminAuth, adminDb } from '../../lib/firebaseAdmin'
+import { competitionQuotaFields, isCompetitionTask } from '@/app/lib/competitionQuota'
 
 export async function GET(req: Request) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '')
@@ -19,10 +20,14 @@ export async function GET(req: Request) {
   ])
 
   const configData = configSnap.data() ?? {}
-  const limit: number = configData.dailySimLimit ?? 30
   const simMaxWaitTimeMs: number = configData.simMaxWaitTimeMs ?? 300000
   const userData = userSnap.data() ?? {}
-  const used: number = userData.simCountDate === today ? (userData.dailySimCount ?? 0) : 0
+
+  const taskParam = new URL(req.url).searchParams.get('task')
+  const { countField, dateField, limit } = isCompetitionTask(taskParam)
+    ? competitionQuotaFields(configData, taskParam)
+    : { countField: 'dailySimCount', dateField: 'simCountDate', limit: (configData.dailySimLimit as number | undefined) ?? 30 }
+  const used: number = userData[dateField] === today ? (userData[countField] ?? 0) : 0
 
   return Response.json({ used, limit, simMaxWaitTimeMs })
 }
