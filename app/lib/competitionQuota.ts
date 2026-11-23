@@ -1,6 +1,6 @@
 export type CompetitionTask = 'task1' | 'task2'
 
-export const COMPETITION_RUN_LIMITS: Record<CompetitionTask, number> = { task1: 5, task2: 10 }
+export const COMPETITION_RUN_LIMITS: Record<CompetitionTask, number> = { task1: 10, task2: 10 }
 
 export function isCompetitionTask(t: unknown): t is CompetitionTask {
   return t === 'task1' || t === 'task2'
