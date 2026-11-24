@@ -6,10 +6,10 @@ import { signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
-const INSTRUCTION_URL = 'https://docs.google.com/document/d/1B7DzTJ2r7xIlldV-rBDOESO7azU9vg9py5Ae8SvRhto/edit?tab=t.0#heading=h.tq2480fmnkse'
+const INSTRUCTION_URL = 'https://docs.google.com/document/d/1B7DzTJ2r7xIlldV-rBDOESO7azU9vg9py5Ae8SvRhto/edit?tab=t.lobm1bajyzvz'
 const VIDEO_URL = 'https://drive.google.com/file/d/1vQp-sn-8lphfej6V_0E9_NMBEWccw1WP/preview'
 const TUTORIAL_URL = 'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
-const CONSENT_FORM_URL = 'https://cornell.ca1.qualtrics.com/jfe/form/SV_afLclmWLfLJL37M'
+const CONSENT_FORM_URL = 'https://forms.gle/uHzhasWQVfBf7aV98'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -43,12 +43,16 @@ export default function LandingPage() {
         <div className="w-full max-w-xl text-left space-y-6">
           <p className="text-base text-neutral-200">
             Step 1.{' '}
-            Watch the tutorial before you begin.
+            Read the{' '}
+            <a href={INSTRUCTION_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">instructions</a>
+            {' '}and complete the{' '}
+            <a href={CONSENT_FORM_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white">consent form</a>
+            {' '}before you begin.
           </p>
 
           <p className="text-base text-neutral-200">
             Step 2.{' '}
-              Bookmark this page in case you need to come back to it later.
+            Watch the tutorial video.
           </p>
 
           <p className="text-base text-neutral-200">

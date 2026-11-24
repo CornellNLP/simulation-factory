@@ -116,6 +116,7 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
 
 const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPwn8S0PMUvgzkvTFUGM6nheJHc0I-Dl_km1nFByRA/viewform?usp=publish-editor'
 const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1B7DzTJ2r7xIlldV-rBDOESO7azU9vg9py5Ae8SvRhto/edit?tab=t.lobm1bajyzvz#heading=h.lwm5dlpflun5'
+const CONSENT_FORM_URL = 'https://forms.gle/uHzhasWQVfBf7aV98'
 
 type Task = 'task1' | 'task2'
 const TASK_LABELS: Record<Task, string> = { task1: 'Constructive Mediator', task2: 'Covert Mediator' }
@@ -636,15 +637,17 @@ export default function CompetitionMediatorApp({ variant, home = '/' }: { varian
 
           {/* competition instructions + tutorial video banner */}
           <div className="rounded-md border border-blue-400/50 bg-blue-500/10 overflow-hidden text-sm text-blue-200">
-            <a
-              href={COMPETITION_INSTRUCTIONS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between gap-3 px-4 py-3 border-b border-blue-400/10 hover:bg-blue-500/20 hover:text-blue-100 transition-colors cursor-pointer"
-            >
-              <span>Read the competition instructions before building and submitting your mediator.</span>
-              <span className="shrink-0 font-medium underline underline-offset-2">Open instructions →</span>
-            </a>
+            {/* a div, not one big link, since the row now holds two links (instructions + consent form) */}
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-blue-400/10">
+              <span>
+                Read the{' '}
+                <a href={COMPETITION_INSTRUCTIONS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-blue-100">competition instructions</a>
+                {' '}and complete the{' '}
+                <a href={CONSENT_FORM_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-blue-100">consent form</a>
+                {' '}before you begin.
+              </span>
+              <a href={COMPETITION_INSTRUCTIONS_URL} target="_blank" rel="noopener noreferrer" className="shrink-0 font-medium underline underline-offset-2 hover:text-blue-100">Open instructions →</a>
+            </div>
             <button
               onClick={() => setShowTutorial(v => !v)}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-blue-500/20 hover:text-blue-100 transition-colors cursor-pointer"
