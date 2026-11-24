@@ -122,7 +122,8 @@ export function startTour() {
                     description:
                         'Here you can check if your mediators are a valid for submitting to the competition. ' +
                         'This is done by analyzing how your mediator performs in simulated conversations. ' +
-                        'There are different tests for the constructive mediator and for the covert influence mediator. You can run a total of 60 tests per day.',
+                        'There are different tests for the constructive mediator and for the covert influence mediator. ' +
+                        'You can run a total of 10 tests per day, and each test contains multiple runs.',
                 },
             },
             {

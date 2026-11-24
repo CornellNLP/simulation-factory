@@ -1,9 +1,9 @@
-export type CompetitionTask = 'task1' | 'task2'
+export type CompetitionTask = 'task1' | 'task2' | 'prolific'
 
-export const COMPETITION_RUN_LIMITS: Record<CompetitionTask, number> = { task1: 10, task2: 10 }
+export const COMPETITION_RUN_LIMITS: Record<CompetitionTask, number> = { task1: 10, task2: 10, prolific: 20 }
 
 export function isCompetitionTask(t: unknown): t is CompetitionTask {
-  return t === 'task1' || t === 'task2'
+  return t === 'task1' || t === 'task2' || t === 'prolific'
 }
 
 export function competitionQuotaFields(config: Record<string, unknown>, task: CompetitionTask) {
