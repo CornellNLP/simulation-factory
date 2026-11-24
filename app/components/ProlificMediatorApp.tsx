@@ -156,6 +156,8 @@ function SimilarityNote({ similarity }: { similarity: number }) {
 
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
+const SCORE_ATTEMPTS = 3
+const SCORE_RETRY_DELAY_MS = 5000
 const DETECTION_TARGET = 0.1   // Evaluate: the detection score should stay below this
 const MOVEMENT_TARGET = 0.15   // and the stance movement should go above this
 export default function ProlificMediatorApp({ variant, home = '/' }: { variant: string; home?: string }) {
@@ -171,7 +173,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     try {
       const token = await auth.currentUser?.getIdToken()
       if (!token) return
-      const res = await fetch(`${API_BASE}/api/quota`, { headers: { Authorization: `Bearer ${token}` } })
+      const res = await fetch(`${API_BASE}/api/quota?task=prolific`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) return
       const data = await res.json()
       setSimQuota({ used: data.used, limit: data.limit, simMaxWaitTimeMs: data.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS })
@@ -235,10 +237,11 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
   const [scores, setScores] = useState<{ bias_label: string; bias_level: number | null; stance_movement: number | null; constructiveness: number | null }[] | null>(null)
   const [evaluation, setEvaluation] = useState<{ detection: number; movement: number; flagged: number; total: number } | null>(null)
   const [missingTarget, setMissingTarget] = useState<{ required: boolean; tabs: string[] } | null>(null)
-  const [simMissingTarget, setSimMissingTarget] = useState<string[] | null>(null)   // Simulate blocked: no Target Position in the Intervention Prompt (lists the other tabs without one)
+  const [simMissingTarget, setSimMissingTarget] = useState<{ required: boolean; tabs: string[] } | null>(null)   // Simulate: blocked when the Intervention Prompt has no Target Position, otherwise a tip (lists the other tabs without one)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
-  const [numCohorts, setNumCohorts] = useState('8')
-  const [numUtterances, setNumUtterances] = useState('15')
+  const numCohorts = '8'
+  const numUtterances = '15'
+  const runsLeft = simQuota ? Math.max(0, simQuota.limit - simQuota.used) : null
   const [activePromptTab, setActivePromptTab] = useState<'response' | 'should-respond' | 'initialization'>('response')
   const [showPreview, setShowPreview] = useState(false)
 
@@ -358,26 +361,19 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     if (simExport === null) return null
     setComputing(track)
     try {
-      const res = await fetch(`${API_BASE}/api/convokit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(simExport),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        alert(`ConvoKit conversion failed: ${err.error ?? res.statusText}`)
-        return null
+      for (let attempt = 1; attempt <= SCORE_ATTEMPTS; attempt++) {
+        const data = await fetch(`${API_BASE}/api/convokit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(simExport),
+        }).then(res => res.ok ? res.json() : null).catch(() => null)
+        if (data?.scores) {
+          const rows = Object.values(data.scores) as NonNullable<typeof scores>
+          setScores(rows)
+          return rows
+        }
+        if (attempt < SCORE_ATTEMPTS) await new Promise(resolve => setTimeout(resolve, SCORE_RETRY_DELAY_MS))
       }
-      const data = await res.json()
-      if (!data.scores) {
-        alert('No scores available currently, please try again later.')
-        return null
-      }
-      const rows = Object.values(data.scores) as NonNullable<typeof scores>
-      setScores(rows)
-      return rows
-    } catch (e) {
-      alert(`ConvoKit conversion error: ${String(e)}`)
       return null
     } finally {
       setComputing(null)
@@ -430,7 +426,6 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     }
     const rows = await fetchScores('track2')
     if (!rows) return
-    if (missingIn.length) setMissingTarget({ required: false, tabs: missingIn })
     const levels = rows.map(r => r.bias_level).filter((x): x is number => x !== null)  // skips -1 insufficient
     const movement = rows.map(r => r.stance_movement).filter((x): x is number => x !== null)
     const medium = rows.filter(r => r.bias_label === 'medium').length
@@ -450,7 +445,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
       const res = await fetch(`${API_BASE}/api/create-experiment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediatorTemplate: mediatorData, mode, variant, numCohorts, numUtterances, action, idToken }),
+        body: JSON.stringify({ mediatorTemplate: mediatorData, mode, variant, numCohorts, numUtterances, action, idToken, task: 'prolific' }),
       })
       const data = await res.json()
       setCreateState({ status: res.ok ? 'done' : 'error', result: data })
@@ -539,6 +534,9 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
   }
   simPollRef.current = handleSimPoll
 
+  useEffect(() => {
+    if (simState.status === 'done' && simExport !== null && evaluation === null) showBiasScores()
+  }, [simState.status, simExport])
 
   // sent to simulation + polling its status
   async function handleCreateSim() {
@@ -546,7 +544,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     setSimilarityScore(similarity)
     // prolific: no simulation without a Target Position block in the Intervention Prompt
     const { hasTarget, missingIn } = targetPositionCheck()
-    setSimMissingTarget(hasTarget ? null : missingIn)
+    setSimMissingTarget(!hasTarget || missingIn.length ? { required: !hasTarget, tabs: missingIn } : null)
     if (similarity > SIMILARITY_THRESHOLD || !hasTarget) {
       setSimExport(null)
       setScoreNotes([])
@@ -847,45 +845,19 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
             </div>
             {simQuota && (
               <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
+                {/* <div className="flex-1 h-1.5 rounded-full bg-neutral-800 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${simQuota.used >= simQuota.limit ? 'bg-red-500' : 'bg-neutral-500'}`}
                     style={{ width: `${Math.min(100, (simQuota.used / simQuota.limit) * 100)}%` }}
                   />
-                </div>
-                <span className={`text-xs tabular-nums ${simQuota.used >= simQuota.limit ? 'text-red-400' : 'text-neutral-500'}`}>
-                  {simQuota.used}/{simQuota.limit} today
+                </div> */}
+                <span className={`px-2.5 py-1 rounded-md border text-sm font-medium tabular-nums ${runsLeft === 0 ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'}`}>
+                  {runsLeft} {runsLeft === 1 ? 'test' : 'tests'} left today (resets at midnight ET)
                 </span>
               </div>
             )}
             {/* agent-agent (simulation) on its own row, with cohort count */}
             <div className="flex flex-wrap items-center gap-3">
-              <div>
-                <select
-                  value={numCohorts}
-                  onChange={e => setNumCohorts(e.target.value)}
-                  disabled={busy}
-                  className="p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                >
-                  {[8, 16, 24, 32].map(n => <option key={n} value={n}>{n}</option>)}
-                </select> <label className="text-sm text-neutral-400">Discussions</label>
-              </div>
-              <div>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={numUtterances}
-                  onChange={e => {
-                    const v = e.target.value
-                    if (v === '') return setNumUtterances('')
-                    const n = Math.floor(Number(v))
-                    if (Number.isFinite(n)) setNumUtterances(String(Math.min(20, Math.max(1, n))))
-                  }}
-                  disabled={busy}
-                  className="w-16 p-2 rounded-lg border border-neutral-700 bg-neutral-900 text-sm text-neutral-200"
-                /> <label className="text-sm text-neutral-400">Messages (1-20)</label>
-              </div>
               <div className="flex flex-col w-full">
                 <label className="text-sm text-neutral-400">Max wait time: {(() => { const s = Math.round((simQuota?.simMaxWaitTimeMs ?? MAX_WAIT_TIME_MS) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })()} minutes</label>
                 {simStartTime !== null && (
@@ -898,7 +870,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
                 label="Simulate"
                 loadingLabel="Simulating…"
                 loading={(creating === 'agent-agent' && createAction === 'simulate') || simState.status === 'loading'}
-                disabled={busy || (simQuota !== null && simQuota.used >= simQuota.limit)}
+                disabled={busy || runsLeft === 0}
                 onClick={handleCreateSim}
               />
             </div>
@@ -906,7 +878,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
         </div>
 
         {similarityScore !== null && <SimilarityNote similarity={similarityScore} />}
-        {simMissingTarget && <TargetPositionNote required tabs={simMissingTarget} />}
+        {simMissingTarget && <TargetPositionNote required={simMissingTarget.required} tabs={simMissingTarget.tabs} />}
         {simState.result !== null && (
           <ResultBox title="Simulation" state={simState} showMessage />
         )}
@@ -930,15 +902,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
               />
             </div> */}
             <div className="w-full">
-              <p className="mb-2 text-sm text-neutral-400">Click below to check your mediator performance</p>
-              <button
-                onClick={showBiasScores}
-                disabled={computing !== null || evaluation !== null || !!missingTarget?.required}
-                className="w-full px-5 py-2.5 rounded-lg border border-blue-400/50 bg-blue-500/10 text-base font-medium text-blue-300 hover:bg-blue-500/20 hover:text-blue-200 active:scale-[0.98] transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-              >
-                {computing === 'track2' ? 'Computing…' : 'Evaluate'}
-              </button>
-              {/* feedback right under the button: the Target Position check first, then the scores */}
+              {computing !== null && <p className="text-sm text-neutral-400">Computing…</p>}
               <div className="mt-3 space-y-3">
                 {missingTarget && <TargetPositionNote required={missingTarget.required} tabs={missingTarget.tabs} />}
                 {scoreNotes.map((note, i) => (

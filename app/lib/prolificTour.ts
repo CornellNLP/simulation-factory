@@ -11,7 +11,7 @@ export function startTour() {
                 popover: {
                     title: '',
                     description:
-                        'Your mediator template\'s name. ' +
+                        'Your mediator\'s name. ' +
                         'Click the pencil next to it to rename.',
                 },
             },
@@ -19,14 +19,14 @@ export function startTour() {
                 element: '#tour-save',
                 popover: {
                     title: '',
-                    description: 'Save changes to this template\'s content.',
+                    description: 'Save your mediator.',
                 },
             },
             {
                 element: '#tour-new-template',
                 popover: {
                     title: '',
-                    description: 'Create a new template — start from scratch (Default Template) or duplicate one of your existing templates.',
+                    description: 'Create a new mediator, either starting from the default template or from one of your saved mediators.',
                 },
             },
             {
@@ -34,7 +34,7 @@ export function startTour() {
                 popover: {
                     title: 'Prompt Editors',
                     description:
-                        'Prompt editors: this is the soul of your Mediator, the prompts determine when and how it intervenes.  ' +
+                        'Prompt editors: this is the soul of your Mediator, the prompts determine when and how it intervenes. ' +
                         'Be creative!',
                 },
             },
@@ -44,7 +44,7 @@ export function startTour() {
                     title: 'Intervention Prompt Editor',
                     description:
                         'Intervention prompt editor: here you design how the Mediator intervenes. ' +
-                        'You can combine different prompt-blocks (such as the topic being discussed, the content of the chat, etc.).',
+                        'You can combine different prompt-blocks (such as the topic being discussed, the content of the chat, etc.) and connect them with your own text.',
                 },
             },
             {
@@ -68,7 +68,7 @@ export function startTour() {
                 popover: {
                     title: 'Add Item',
                     description:
-                        'Here you can add to your prompt any of the prompt blocks listed above, or a Freeform Text block.  ' +
+                        'Here you can add to your prompt any of the prompt blocks listed above, or your own Freeform Text block to provide instructions and connect these blocks. ' +
                         'You can edit and reorder the sequence of blocks to obtain unique instructions for your Mediator.',
                 },
             },
@@ -76,34 +76,36 @@ export function startTour() {
                 element: '#tour-preview',
                 popover: {
                     title: 'Preview Prompt',
-                    description: 'See what the prompt looks like in the experiment, with an example topic filled in.',
-                },
-            },
-            {
-                element: '#tour-template-download',
-                popover: {
-                    title: 'Export your Mediator',
-                    description: 'You will need this for the submission.',
+                    description: 'See the prompt your mediator will receive during a discussion with congestion pricing as an example.',
                 },
             },
             // { element: '#tour-template-upload', popover: { title: 'Import your Mediator', description: 'Use this to upload a previously exported mediator template.' } },
             {
                 element: '#tour-create',
                 popover: {
-                    title: 'See an Example Discussion',
+                    title: 'Test in example discussion',
                     description:
-                        'Click Create to set up one example discussion between two AI participants and your mediator. ' +
-                        'Open the links that appear to watch it the way participants see it.',
+                        'You can check your mediator and see how the participants will experience it during an example discussion. ' +
+                        'You can test it by seeing how two agents discuss with each other.',
                 },
             },
             {
                 element: '#tour-simulate',
                 popover: {
-                    title: 'Simulate',
+                    title: 'Check Validity',
                     description:
-                        'This is the main section where you can run multiple discussions with agents to see how your Mediator behaves across multiple scenarios.  ' +
-                        'You can compute a score for the task to help you understand the results.  ' +
-                        '(Note that the simulations are resource-intensive, so they will take some time to run and there is a limit of how many you can run each day.)',
+                        'Here you can check if your mediator is valid for submission. ' +
+                        'This is done by analyzing how your mediator performs in simulated conversations. ' +
+                        'You can run a total of 20 tests per day.',
+                },
+            },
+            {
+                element: '#tour-template-download',
+                popover: {
+                    title: 'Export your Mediator',
+                    description:
+                        'Download your mediator. ' +
+                        'You will need this file for your submission.',
                 },
             },
             {

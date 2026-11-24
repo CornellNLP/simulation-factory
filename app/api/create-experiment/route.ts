@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     const competitionTask = isCompetitionTask(task) ? task : undefined
     const quota = await checkAndIncrementQuota(email, cohortCount ?? 1, competitionTask)
     if (!quota.allowed) {
-      const what = competitionTask ? `${competitionTask === 'task1' ? 'Task 1' : 'Task 2'} test` : 'simulation'
+      const what = competitionTask === 'task1' ? 'Task 1 test' : competitionTask === 'task2' ? 'Task 2 test' : competitionTask ? 'test' : 'simulation'
       return Response.json({ error: `Daily ${what} limit reached (${quota.limit}/day). Resets at midnight EST.` }, { status: 429 })
     }
   }
