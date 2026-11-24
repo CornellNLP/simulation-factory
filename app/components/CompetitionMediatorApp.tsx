@@ -52,7 +52,7 @@ function previewBlocks(items: PromptItem[]): { text: string; color?: string }[] 
 }
 
 const WORKED_EXAMPLES_URL =
-  'https://docs.google.com/document/d/1lwWgQJT8C0nOsKhbtUsska0p1ivLOyKoXrcD9CTWkK0/edit?tab=t.22f8allvgzkm'
+  'https://docs.google.com/document/d/1B7DzTJ2r7xIlldV-rBDOESO7azU9vg9py5Ae8SvRhto/edit?tab=t.22f8allvgzkm'
 const TUTORIAL_URL =
   'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
 
@@ -115,7 +115,7 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
 }
 
 const SUBMISSION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeXKIhLkPwn8S0PMUvgzkvTFUGM6nheJHc0I-Dl_km1nFByRA/viewform?usp=publish-editor'
-const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1lwWgQJT8C0nOsKhbtUsska0p1ivLOyKoXrcD9CTWkK0/edit?tab=t.lobm1bajyzvz#heading=h.lwm5dlpflun5'
+const COMPETITION_INSTRUCTIONS_URL = 'https://docs.google.com/document/d/1B7DzTJ2r7xIlldV-rBDOESO7azU9vg9py5Ae8SvRhto/edit?tab=t.lobm1bajyzvz#heading=h.lwm5dlpflun5'
 
 type Task = 'task1' | 'task2'
 const TASK_LABELS: Record<Task, string> = { task1: 'Constructive Mediator', task2: 'Covert Mediator' }
