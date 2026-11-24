@@ -11,7 +11,7 @@ import { ApiKeyType, API_KEY_TYPE_LABELS, REASONING_LEVEL_OPTIONS } from '../lib
 import { StructuredPromptEditor, PromptItemType, type PromptItem, type TextPromptItem, type ContextPromptItem } from '../components/StructuredPromptEditor'
 import { MediatorSection } from '../components/MediatorSection'
 import { ActionButton, ResultBox, type ActionState, type Note } from '../components/ExperimentActions'
-import { SaveSection } from './SaveSection'
+import { SaveSection, type SaveSectionHandle } from './SaveSection'
 import { YamlIOSection } from './YamlIOSection'
 import { create } from 'domain'
 import { StructuredOutputSchema, type StructuredOutputConfig } from '../components/StructuredOutputSchema'
@@ -108,7 +108,7 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
           </>
         )} */}
         {legend('bg-[#f08673]', 'Target Position')}
-        <span>[Use only for Task 2: Covert Influence Mediator] the direction of the covert influence (either Supporting or Opposing the debate statement)</span>
+        <span>[Use only for Covert Influence Mediator] the direction of the covert influence (either Supporting or Opposing the debate statement)</span>
       </div>
     </div>
   )
@@ -238,6 +238,12 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
   const [evaluation, setEvaluation] = useState<{ detection: number; movement: number; flagged: number; total: number } | null>(null)
   const [missingTarget, setMissingTarget] = useState<{ required: boolean; tabs: string[] } | null>(null)
   const [simMissingTarget, setSimMissingTarget] = useState<{ required: boolean; tabs: string[] } | null>(null)   // Simulate: blocked when the Intervention Prompt has no Target Position, otherwise a tip (lists the other tabs without one)
+  const [mediatorId, setMediatorId] = useState<string | null>(null)
+  const [mediatorName, setMediatorName] = useState('')
+  const [simMediatorId, setSimMediatorId] = useState<string | null>(null)
+  const [simContent, setSimContent] = useState<string | null>(null)
+  const [pastRuns, setPastRuns] = useState<{ id: string; mediatorId: string; mediatorName: string; detection: number; movement: number; createdAt: string | null; content: string | null }[] | null>(null)
+  const saveSectionRef = useRef<SaveSectionHandle>(null)
   const [creating, setCreating] = useState<'human-human' | 'human-agent' | 'agent-agent' | null>(null)
   const numCohorts = '8'
   const numUtterances = '15'
@@ -418,6 +424,30 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     return { hasTarget, missingIn }
   }
 
+  async function fetchRuns() {
+    const token = await auth.currentUser?.getIdToken()
+    if (!token) return
+    const res = await fetch(`${API_BASE}/api/templates/runs?collection=mediators`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null)
+    if (!res?.ok) return
+    const data = await res.json()
+    setPastRuns(data.runs)
+  }
+
+  useEffect(() => {
+    if (authReady) fetchRuns()
+  }, [authReady, mediatorName])
+
+  async function saveRun(result: { detection: number; movement: number; flagged: number; total: number }) {
+    const token = await auth.currentUser?.getIdToken()
+    if (!token || !simMediatorId) return
+    const res = await fetch(`${API_BASE}/api/templates/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ collection: 'mediators', id: simMediatorId, experimentId, content: simContent, ...result }),
+    }).catch(() => null)
+    if (res?.ok) fetchRuns()
+  }
+
   async function showBiasScores() {
     const { hasTarget, missingIn } = targetPositionCheck()
     if (!hasTarget) {
@@ -430,7 +460,9 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     const movement = rows.map(r => r.stance_movement).filter((x): x is number => x !== null)
     const medium = rows.filter(r => r.bias_label === 'medium').length
     const high = rows.filter(r => r.bias_label === 'high').length
-    setEvaluation({ detection: mean(levels), movement: mean(movement), flagged: medium + high, total: rows.length })
+    const result = { detection: mean(levels), movement: mean(movement), flagged: medium + high, total: rows.length }
+    setEvaluation(result)
+    saveRun(result)
   }
 
   async function handleCreate(mode: 'human-human' | 'human-agent' | 'agent-agent', action: 'create' | 'simulate' = 'create') {
@@ -557,6 +589,8 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
     const experimentId: string | undefined = data?.experiment_id
     if (!experimentId) return
     setExperimentId(experimentId)
+    setSimMediatorId(mediatorId)
+    setSimContent(mediatorData)
 
     setSimExport(null)
     setScores(null)
@@ -644,11 +678,14 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
 
           {/* Save / Load */}
           <SaveSection
+            ref={saveSectionRef}
             collection="mediators"
             content={mediatorData}
             onContentChange={setMediatorData}
             getDefaultContent={getDefaultContent}
             onDirtyChange={setDirty}
+            onNameChange={setMediatorName}
+            onIdChange={setMediatorId}
             enabled={authReady}
           />
 
@@ -941,6 +978,44 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
             >
               Notebook to analyze the data
             </a> */}
+          </div>
+        )}
+
+        {pastRuns && (
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 space-y-2 text-sm">
+            <p className="font-medium text-neutral-300">History runs</p>
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {pastRuns.length === 0 && <p className="text-neutral-500">No runs yet.</p>}
+              {pastRuns.map(run => {
+                const detectionMet = run.detection < DETECTION_TARGET
+                const movementMet = run.movement > MOVEMENT_TARGET
+                const when = run.createdAt ? new Date(run.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''
+                const content = run.content
+                return (
+                  <div key={run.id} className="space-y-1 border-t border-neutral-800 pt-2">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="truncate font-medium text-neutral-200">{run.mediatorName}</span>
+                      <span className="shrink-0 text-neutral-500 tabular-nums">{when}</span>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums">
+                      <span className="text-neutral-300">Detection score {run.detection.toFixed(2)} <span className={detectionMet ? 'text-emerald-400' : 'text-amber-400'}>{detectionMet ? '✓' : '✗'}</span></span>
+                      <span className="text-neutral-300">Stance movement {run.movement.toFixed(2)} <span className={movementMet ? 'text-emerald-400' : 'text-amber-400'}>{movementMet ? '✓' : '✗'}</span></span>
+                      <span className="ml-auto flex items-baseline gap-2">
+                        {detectionMet && movementMet && <span className="px-2 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-xs font-medium text-emerald-300">Passed</span>}
+                        {content && (
+                          <button
+                            onClick={() => saveSectionRef.current?.openVersion(run.mediatorId, content)}
+                            className="px-2 py-0.5 rounded-md border border-neutral-700 bg-neutral-900 text-xs text-neutral-400 hover:border-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            Load
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 

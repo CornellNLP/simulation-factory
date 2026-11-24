@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import { TemplateNameModal } from './TemplateNameModal'
 
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
+export type SaveSectionHandle = { openVersion: (id: string, content: string) => Promise<void> }
 
 export interface SaveSectionProps {
   collection: 'mediators' | 'mediators-covert' | 'assistants' | 'assistants-reddit'
@@ -14,7 +15,9 @@ export interface SaveSectionProps {
   getDefaultContent: () => Promise<string>
   onDirtyChange?: (dirty: boolean) => void
   onNameChange?: (name: string) => void
+  onIdChange?: (id: string | null) => void
   enabled: boolean
+  ref?: Ref<SaveSectionHandle>
 }
 
 const DEFAULT_TEMPLATE_NAME = 'default template'
@@ -26,7 +29,9 @@ export function SaveSection({
   getDefaultContent,
   onDirtyChange,
   onNameChange,
+  onIdChange,
   enabled,
+  ref,
 }: SaveSectionProps) {
   const [items, setItems] = useState<SavedTemplateItem[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -44,6 +49,8 @@ export function SaveSection({
   useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty])
   useEffect(() => { if (isDirty) setShowSaveAlert(false) }, [isDirty])
   useEffect(() => { onNameChange?.(activeName) }, [activeName])
+  useEffect(() => { onIdChange?.(activeId) }, [activeId])
+  useImperativeHandle(ref, () => ({ openVersion: handleOpenVersion }))
 
   async function authHeader(): Promise<Record<string, string> | null> {
     const token = await auth.currentUser?.getIdToken()
@@ -174,6 +181,18 @@ export function SaveSection({
     setItems(prev => [{ id: result.id, name: result.name, updatedAt: new Date().toISOString() }, ...prev])
     applyActive(result.id, result.name, seedContent)
     return { ok: true as const }
+  }
+
+  async function handleOpenVersion(id: string, versionContent: string) {
+    if (isDirty && !window.confirm('You have unsaved changes. Load this version and discard them?')) return
+    if (id !== activeId) {
+      const headers = await authHeader()
+      if (!headers) return
+      const loaded = await loadItem(id, headers)
+      if (!loaded) return
+      applyActive(loaded.id, loaded.name, loaded.content)
+    }
+    onContentChange(versionContent)
   }
 
   async function handleRename({ name }: { name: string }) {
