@@ -54,7 +54,7 @@ function previewBlocks(items: PromptItem[]): { text: string; color?: string }[] 
 const WORKED_EXAMPLES_URL =
   'https://docs.google.com/document/d/1TZKLsgHgIiNGCv_bU6-DuqSdS2f0IARyKgJR5O-lCKs/edit?usp=sharing'
 const TUTORIAL_URL =
-  'https://docs.google.com/document/d/1Sdz7hVSgyPE7R2bM1LzTql-0ecP4fWv3WUXNaaiSIxE/edit?usp=sharing'
+  'https://docs.google.com/document/d/1vgcVx-BqKPgLswTUL2yKKo_HVk1_wWWVbW3L865Amhs/edit?usp=sharing'
 
 function WorkedExamplesLink() {
   return (
@@ -108,7 +108,7 @@ function PromptBlockLegend({ textOnly }: { textOnly?: boolean }) {
           </>
         )} */}
         {legend('bg-[#f08673]', 'Target Position')}
-        <span>[Use only for Covert Influence Mediator] the direction of the covert influence (either Supporting or Opposing the debate statement)</span>
+        <span>The direction of the covert influence (either supporting or opposing the debate statement)</span>
       </div>
     </div>
   )
@@ -982,7 +982,7 @@ export default function ProlificMediatorApp({ variant, home = '/' }: { variant: 
         )}
 
         {pastRuns && (
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 space-y-2 text-sm">
+          <div id="tour-history" className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 space-y-2 text-sm">
             <p className="font-medium text-neutral-300">History runs</p>
             <div className="max-h-96 overflow-y-auto space-y-2">
               {pastRuns.length === 0 && <p className="text-neutral-500">No runs yet.</p>}

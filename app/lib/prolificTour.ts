@@ -100,6 +100,16 @@ export function startTour() {
                 },
             },
             {
+                element: '#tour-history',
+                popover: {
+                    title: 'History Runs',
+                    description:
+                        'Results of your 20 most recent tests, across all your mediators. ' +
+                        'A ✓ marks a score that meets its target, and Passed means both do. ' +
+                        'Click Load to bring back the version of the mediator used in that test.',
+                },
+            },
+            {
                 element: '#tour-template-download',
                 popover: {
                     title: 'Export your Mediator',
